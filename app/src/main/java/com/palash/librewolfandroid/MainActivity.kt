@@ -2359,22 +2359,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showPrivacyReport() {
-        val trackers = store.cumulativeTrackers
-        val threats = store.cumulativeThreats
-        val history = historyStore.all().size
-        val bookmarks = bookmarkStore.all().size
-        val days = if (trackers == 0 && threats == 0) 0 else 1
-        AlertDialog.Builder(this)
-            .setTitle(getString(R.string.privacy_report_title))
-            .setMessage(
-                "${getString(R.string.stat_trackers)}: $trackers\n" +
-                    "${getString(R.string.stat_threats)}: $threats\n" +
-                    "${getString(R.string.stat_history)}: $history\n" +
-                    "${getString(R.string.stat_bookmarks)}: $bookmarks\n\n" +
-                    "$days d",
-            )
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        // Opens the same page Settings shows, rather than a five-line dialog
+        // built from a second, independent set of reads. That duplication is how
+        // the two drift apart and start disagreeing with each other; there is now
+        // one page and one read of the stores.
+        startActivity(
+            Intent(this@MainActivity, SettingsActivity::class.java)
+                .putExtra(SettingsActivity.EXTRA_SCREEN, SettingsScreens.PRIVACY_REPORT),
+        )
     }
 
     private fun askQuit() {

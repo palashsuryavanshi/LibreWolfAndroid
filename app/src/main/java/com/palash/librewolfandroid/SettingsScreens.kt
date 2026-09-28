@@ -40,7 +40,6 @@ object SettingsScreens {
     const val RESET = "reset"
     const val ABOUT = "about"
     const val LICENSES = "licenses"
-    const val PRIVACY_CENTRE = "privacy_centre"
     const val TABS_BEHAVIOUR = "tabs_behaviour"
     const val SEARCH_ENGINES = "search_engines"
     const val COMPATIBILITY = "compatibility"
@@ -53,7 +52,7 @@ object SettingsScreens {
         root(), privacy(), tracking(), fingerprinting(), cookies(), https(), dns(),
         permissions(), report(), clearData(), search(), tabsBehaviour(), tabs(),
         appearance(), websites(), downloads(), passwords(), media(), accessibility(),
-        data(), advanced(), developer(), reset(), about(), licences(), privacyCentre(),
+        data(), advanced(), developer(), reset(), about(), licences(),
         searchEngines(), compatibility(), diagnostics(),
     )
 
@@ -91,7 +90,6 @@ object SettingsScreens {
                 nav(string(R.string.cat_about), ABOUT, string(R.string.cat_about_sub), R.drawable.ic_about) 
             }
             section(footer = string(R.string.settings_search_hint)) {
-                nav(string(R.string.privacy_centre), PRIVACY_CENTRE, string(R.string.privacy_centre_sub), R.drawable.ic_shield) 
             }
         }
     }
@@ -247,8 +245,18 @@ object SettingsScreens {
         }
     }
 
-    private fun report() = screen(PRIVACY_REPORT, "Privacy report", "trackers", "threats", "statistics") {
+    private fun report() = screen(PRIVACY_REPORT, "Privacy report", "trackers", "threats", "statistics", "protection", "status") {
         sections {
+            // The posture section used to live on a separate "Privacy centre" page
+            // that duplicated these counters. There is one page now, so the menu
+            // row and this row cannot show two different sets of numbers.
+            section(string(R.string.centre_protection), footer = string(R.string.centre_note)) {
+                info(string(R.string.centre_tracking), if (store.etpStrict) string(R.string.etp_strict) else string(R.string.etp_standard))
+                info(string(R.string.centre_fingerprinting), fingerprintingLabel())
+                info(string(R.string.centre_cookies), cookiesLabel())
+                info(string(R.string.centre_https), httpsLabel())
+                info(string(R.string.centre_safe_browsing), if (store.safeBrowsingMode == 0) string(R.string.off) else string(R.string.protection_enabled))
+            }
             section(string(R.string.sec_blocked)) {
                 info(string(R.string.stat_trackers), store.cumulativeTrackers.toString())
                 info(string(R.string.stat_threats), store.cumulativeThreats.toString())
@@ -257,6 +265,10 @@ object SettingsScreens {
                 info(string(R.string.stat_history), history.all().size.toString())
                 info(string(R.string.stat_bookmarks), bookmarks.all().size.toString())
                 info(string(R.string.stat_sites_with_permissions), sitePermissions.all().size.toString())
+                info(string(R.string.storage_profile), Format.bytes(activity, profileSize()))
+            }
+            section {
+                nav(string(R.string.settings_site), PRIVACY_PERMISSIONS, string(R.string.settings_site_sub), null)
             }
             section(footer = string(R.string.report_limits)) {
                 action(string(R.string.settings_delete_now), { clearDialog(it) }, null, null) 
@@ -639,33 +651,6 @@ object SettingsScreens {
             }
             section(footer = string(R.string.licence_note)) {
                 action(string(R.string.about_source), { activity_(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(SOURCE_URL))) }, SOURCE_URL) 
-            }
-        }
-    }
-
-    // ---- privacy centre ----
-
-    private fun privacyCentre() = screen(PRIVACY_CENTRE, "Privacy centre", "summary", "status", "overview") {
-        sections {
-            section(string(R.string.centre_protection), footer = string(R.string.centre_note)) {
-                info(string(R.string.centre_tracking), if (store.etpStrict) string(R.string.etp_strict) else string(R.string.etp_standard))
-                info(string(R.string.centre_fingerprinting), fingerprintingLabel())
-                info(string(R.string.centre_cookies), cookiesLabel())
-                info(string(R.string.centre_https), httpsLabel())
-                info(string(R.string.centre_safe_browsing), if (store.safeBrowsingMode == 0) string(R.string.off) else string(R.string.protection_enabled))
-            }
-            section(string(R.string.centre_blocked)) {
-                info(string(R.string.stat_trackers), store.cumulativeTrackers.toString())
-                info(string(R.string.stat_threats), store.cumulativeThreats.toString())
-            }
-            section(string(R.string.centre_data)) {
-                info(string(R.string.stat_history), history.all().size.toString())
-                info(string(R.string.stat_sites_with_permissions), sitePermissions.all().size.toString())
-                info(string(R.string.storage_profile), Format.bytes(activity, profileSize()))
-            }
-            section {
-                action(string(R.string.settings_delete_now), { clearDialog(it) }, string(R.string.settings_delete_now_sub), null) 
-                nav(string(R.string.settings_site), PRIVACY_PERMISSIONS, string(R.string.settings_site_sub), null) 
             }
         }
     }

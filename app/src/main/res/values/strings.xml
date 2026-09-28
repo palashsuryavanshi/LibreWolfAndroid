@@ -257,7 +257,6 @@
     <string name="inactive">Inactive</string>
     <string name="groups">Groups</string>
     <string name="privacy_report">Privacy report</string>
-    <string name="privacy_report_title">Privacy report</string>
     <string name="stat_trackers">Trackers blocked</string>
     <string name="stat_threats">Threats blocked</string>
     <string name="ask_every_time">Ask every time</string>
@@ -558,11 +557,7 @@
     <string name="privacy_policy_body">Nothing leaves this device unless you ask it to.\n\nSearch suggestions are sent to the search provider you chose, and only while suggestions are on. The DNS provider you choose can see the names you look up. Extension updates are fetched from the add-on source you added them from.\n\nThere is no account, no sync, no analytics and no crash upload. Crash reports are written to this device only, and you can read them in Diagnostics.</string>
 
     <!-- Privacy centre -->
-    <string name="privacy_centre">Privacy centre</string>
-    <string name="privacy_centre_sub">Your privacy state in one place</string>
     <string name="centre_protection">Protection</string>
-    <string name="centre_blocked">Blocked so far</string>
-    <string name="centre_data">Your data</string>
     <string name="centre_tracking">Tracking protection</string>
     <string name="centre_fingerprinting">Fingerprinting</string>
     <string name="centre_cookies">Third-party cookies</string>
