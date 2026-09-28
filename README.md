@@ -33,34 +33,41 @@ Firefox Desktop — with the privacy posture of [LibreWolf](https://librewolf.ne
 
 ## Which build should I install?
 
-Read this first. There are two channels and they are **not** interchangeable.
+There is one: **[v1.2beta2](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta2)**,
+a full release signed with the project's release key.
 
-| | **Stable — v1.1.1** | **Beta — v1.2-beta1** |
-|---|---|---|
-| Release | [`v1.1`](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.1) (full release) | [`v1.2-beta1`](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2-beta1) (pre-release) |
-| Signed with | the project's **release key** | the standard **Android debug key** |
-| Installs over an existing install? | **Yes** | **No — you must uninstall first** |
-| Use it as your daily browser? | **Yes** | **No** |
+| | |
+|---|---|
+| Version | `1.2beta2`, `versionCode` **156004** |
+| Signed with | the project's **release key** — v2 and v3 signature schemes |
+| Installs over v1.0 or v1.1.1? | **Yes, in place, keeping your data.** Verified on hardware, not inferred. |
+| Android | 8.0 (API 26) or newer |
 
-### ⚠️ The beta will erase your data
+### ⚠️ Installing this is a one-way door
 
-Android only allows an update when both copies carry the **same signature**. The
-beta is signed with a per-machine debug key, so if you already have v1.1.1
-installed it **cannot** install over it. You will get
-`INSTALL_FAILED_UPDATE_INCOMPATIBLE`, and the only way forward is to uninstall
-first.
+Android only accepts a **higher** `versionCode` as an update. Once you install
+v1.2beta2, older builds cannot be installed over it — going back means an
+uninstall, and **an uninstall deletes your history, bookmarks, cookies, saved
+passwords and site permissions.**
 
-**Uninstalling deletes everything: history, bookmarks, cookies, saved passwords
-and site permissions.** There is no migration path and no backup. Going back
-afterwards is the same problem in reverse.
+There is no in-app updater, so nothing will push a version at you. If you are
+happy where you are, do nothing; your existing install is unaffected.
 
-The current beta adds an installable add-on list, a reworked start page and
-changes to the bottom bar. **No add-on has actually been installed yet** — the
-URLs are verified to resolve, but nobody has watched GeckoView fetch and
-register one. That is the main reason it is a beta.
+### If you installed `v1.2-beta1`
 
-**If v1.1.1 is your daily browser, stay on v1.1.1.** Use the beta on a device
-you are willing to wipe.
+That was a **debug build** signed with a different key. Android checks the
+signature before the version code, so a higher version code does not help — it
+has to be an uninstall, and that loses your data. There is no way around this.
+
+If you never installed it, ignore this section.
+
+### Why this is still a 1.2
+
+**No add-on has ever been installed.** The fourteen add-on rows render and every
+URL resolves to a real XPI, but nobody has tapped one and watched GeckoView fetch
+and register it. That is the largest untested thing in this build, and it is why
+the version is not a stable number. If you install one, that is the first thing
+worth trying — please report what happens.
 
 ---
 
@@ -391,22 +398,16 @@ is fine until the first breaking change, at which point one is needed.
 [Build from source](#build-from-source). It costs APK size.
 
 **Debug builds are signed with the standard Android debug key.** That key is
-per-machine and offers no protection. Beta releases are therefore explicitly not
-for daily use — see [Which build should I
-install?](#which-build-should-i-install).
+per-machine and offers no protection, and a debug build cannot be installed over
+a release-keyed one. The earlier `v1.2-beta1` was published that way, which is
+why it forced an uninstall; **v1.2beta2 is release-keyed** and installs in place.
+CI produces unsigned artifacts and has no key.
 
 ---
 
 ## Download
 
-### Stable — v1.1.1
-
-**[`v1.1` release page](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.1)**
-
-> **Note the version mismatch.** The APKs on the `v1.1` tag report themselves as
-> **1.1.1**. The assets were replaced in place with a fixed build rather than
-> publishing a new tag, so the tag name and the version inside the file differ.
-> There is no `v1.1.1` tag. If you have 1.1.1 installed, it is this download.
+**[`v1.2beta2` release page](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta2)**
 
 Pick the split matching your device:
 
@@ -417,17 +418,23 @@ Pick the split matching your device:
 | `app-x86_64-release.apk` | emulators and x86 tablets | ~89 MB |
 
 ```bash
+adb shell getprop ro.product.cpu.abi
 adb install app-arm64-v8a-release.apk
 ```
 
 Or copy the file to the phone and open it, allowing install-unknown-apps when
 prompted.
 
-### Beta — v1.2-beta1
+SHA-256 of the assets in the current release:
 
-**[`v1.2-beta1` release page](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2-beta1)** —
-debug builds, debug key. **Read the data-loss warning at the top of this page
-first.**
+```
+app-arm64-v8a-release.apk
+1bb0b8a439842ed11f2f786a8ec7d4387398ffd2a04129ee5acf4fee36ce814f
+app-armeabi-v7a-release.apk
+00585d40ec7ee3b473f6d24209d592d478e9c186979ce5e692312b331db71d8c
+app-x86_64-release.apk
+f95155789ac77920fb3b0ee45046e94dc0c6a509a2d16360789fa57058043e89
+```
 
 ### Verify what you downloaded
 
@@ -450,18 +457,19 @@ Signing certificate SHA-256:
 
 If that digest does not match, do not install it.
 
-Beta builds are signed with the **standard Android debug key** and will not match
-that digest. That is expected, and it is exactly why they cannot install over a
-release build.
-
 ### Upgrading
 
-Future stable releases keep this package name and this signing key, so you can
-install over the top and keep your history, bookmarks, cookies and password
-vault.
+Future releases keep this package name and this signing key, so you can install
+over the top and keep your history, bookmarks, cookies and password vault.
 
-**Upgrading from a stable build to a beta, or a beta back to stable, requires an
-uninstall** and loses your data. See
+**v1.0 → v1.2beta2 and v1.1.1 → v1.2beta2 both install in place.** That was
+verified on a Pixel 9a, not inferred: v1.1.1 was installed, a page was loaded to
+create history, the update was applied with `adb install -r`, the version code
+moved `156003` → `156004`, and the History screen still listed the page
+afterwards.
+
+**`v1.2-beta1` is the exception.** It was a debug build signed with a different
+key, so an uninstall is unavoidable. See
 [Which build should I install?](#which-build-should-i-install).
 
 #### The package name has changed twice
@@ -485,18 +493,22 @@ If you installed either of those, uninstall before installing a current build.
 
 This repository's 57-commit history was squashed to a single commit so that
 internal session notes, local filesystem paths and development device
-identifiers would not become public. The tags that pointed at the real build
+identifiers would not become public. The tags that pointed at the original build
 commits were part of that history and no longer exist here.
 
-**`v1.0` and `v1.1` are anchors, not build commits.** Both point at the squashed
-root. Checking out `v1.1` gives you the current tree, **not** the code that
-produced those APKs. The exact source for those builds is preserved in a private
-archive, `palashsuryavanshi/LibreWolfAndroid-release-history`, on branches
-`release-history` (v1.1) and `v1.0-source` (v1.0).
+**`v1.2beta2` is the exception: its tag points at the actual build commit**
+(`d97f4aa` on `beta`), so `git checkout v1.2beta2` gives you the source that
+produced the APKs in the release. That was deliberate.
 
-The signing key is unchanged, so the certificate fingerprint above remains a
-valid check that a downloaded APK came from this project. That check is
-unaffected by the history rewrite.
+The `v1.0` and `v1.1` tags were anchors pointing at the squashed root, not at the
+commits those APKs came from. Both releases have since been removed so that
+v1.2beta2 is the single current build; the exact source for them is preserved in
+a private archive, `palashsuryavanshi/LibreWolfAndroid-release-history`, on
+branches `release-history` (v1.1) and `v1.0-source` (v1.0).
+
+The signing key has never changed, so the certificate fingerprint above has been
+a valid check on every build this project has ever published, before and after
+the history rewrite.
 
 ---
 
@@ -777,9 +789,9 @@ meant to be checkable.
 - **Package name:** `com.palash.librewolfandroid`. The application id and the
   release signing key are bound to each other; see
   [Application identity](TESTING.md#application-identity).
-- **Versions:** stable is `1.1.1` (`versionCode 156003`); the beta branch is
-  `1.2-beta1` (`versionCode 156004`). The engine base is shown separately in
-  Settings → About as upstream Firefox `156.0`, LibreWolf release `1`.
+- **Versions:** the current release is `1.2beta2` (`versionCode 156004`), built
+  from the `beta` branch. The engine base is shown separately in Settings → About
+  as upstream Firefox `156.0`, LibreWolf release `1`.
 - **Restart to apply:** engine privacy settings — cookies, HTTPS-only, GPC, DoH,
   JavaScript and Safe Browsing — are fixed when the runtime is created, so
   changing them in Settings takes effect on the next launch.

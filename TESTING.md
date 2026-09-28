@@ -99,6 +99,33 @@ the engine or the delegates. In that same build the Advanced section ends at Loc
 Network Access with no remote-debugging row, and Diagnostics shows no Developer
 section, both of which are present in a debug build.
 
+**In-place upgrade from a real previous release, with data.** This had been
+listed as unverified since v1.0 on the grounds that identical package, identical
+certificate and a higher version code are only *mechanically* the conditions
+Android requires. It has now actually been run, on a Pixel 9a (arm64, Android
+17), against the project's real release key rather than a throwaway:
+
+1. Installed v1.1.1 (`versionCode` 156003, release-signed).
+2. Skipped onboarding, loaded `example.com`, so a history entry and a session
+   existed on disk.
+3. `adb install -r` of the v1.2beta2 arm64 release (`versionCode` 156004) →
+   `Success`. No uninstall, no `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+4. `versionCode` 156003 → 156004 and `versionName` 1.1.1 → 1.2beta2, confirmed
+   from `dumpsys package`.
+5. Force-stopped and relaunched: the session was restored from disk rather than
+   rebuilt, so the persisted record survived.
+6. History screen still listed `Example Domain` / `https://example.com/` with a
+   "0 min ago" timestamp — the entry created under v1.1.1.
+
+A bookmark was attempted as a second store and **did not save**; the add-bookmark
+dialog automation mis-targeted its fields and the list stayed empty. That is an
+automation failure, not evidence about the app, so bookmarks are not claimed as
+covered here. History and session restore are.
+
+Not covered by this: the debug-signed `v1.2-beta1` → release-signed path. That
+one requires an uninstall by construction, because Android checks the signature
+before the version code.
+
 ## Application identity
 
 The application id is **`com.palash.librewolfandroid`**, and it is the identity the
@@ -169,10 +196,12 @@ bookmarks, cookies and password vault. Back up both `keystore.properties` and th
 
 Listed because an untested path is a claim nobody has made yet.
 
-- **Upgrade from an older installed release.** There is no schema version in the
-  preference files. Every persisted record is read through tolerant accessors
-  (`optString`, `optInt`) so a format change degrades to defaults rather than
-  throwing, but a real migration hook is needed before the first breaking change.
+- **A schema migration.** The upgrade path itself is now covered — see below —
+  but there is still no schema version in the preference files. Every persisted
+  record is read through tolerant accessors (`optString`, `optInt`) so a format
+  change degrades to defaults rather than throwing, but a real migration hook is
+  needed before the first *breaking* change. The v1.1.1 → v1.2beta2 upgrade
+  exercised no format change, so it does not evidence one.
 - **RTL layout and Unicode text.** `supportsRtl` is declared and no layout or
   source file hardcodes left/right, gravity or margins, which was checked by
   reading every layout and source file, but the app has never been run under a
