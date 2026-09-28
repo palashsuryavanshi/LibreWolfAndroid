@@ -31,12 +31,12 @@ android {
         minSdk 26
         targetSdk 34
         // versionCode must strictly increase for an update to install over an
-        // existing copy. v1.0 shipped 156001, so a release that reuses it cannot
-        // be installed as an update at all: Android treats an equal or lower code
-        // as a downgrade, and the user's only remedy is to uninstall, which
-        // deletes their history, bookmarks, cookies and password vault.
-        versionCode 156002
-        versionName '1.1'
+        // existing copy. main is at 156003, so the beta line starts at 156004;
+        // reusing or lowering it would make this a downgrade, which Android
+        // refuses and for which the only remedy is an uninstall -- and an
+        // uninstall deletes the user's history, bookmarks, cookies and vault.
+        versionCode 156004
+        versionName '1.2-beta1'
 
         // Mirrors source/version + source/release (desktop LibreWolf base). Kept
         // separate from versionName so About can show what this app is and what

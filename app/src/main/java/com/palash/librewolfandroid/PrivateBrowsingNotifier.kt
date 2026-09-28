@@ -1,13 +1,16 @@
 package com.palash.librewolfandroid
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 
 /**
  * A standing reminder that the tab in front is a private one.
@@ -75,6 +78,17 @@ class PrivateBrowsingNotifier(private val context: Context) {
     }
 
     private fun post() {
+        // Check the permission rather than posting and catching the refusal. Not
+        // being able to show the reminder is the normal case for a user who said
+        // no, and a declined notification should not cost an exception per post.
+        // Lint is right to insist: manager.notify() is annotated as requiring
+        // POST_NOTIFICATIONS and throws SecurityException without it.
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            cancel()
+            return
+        }
         // Both the tap and the swipe go to the same receiver, and neither opens
         // the browser. That is the whole reason this is a receiver and not the
         // usual "tap to open the app" intent: tapping used to bring the browser
@@ -100,8 +114,8 @@ class PrivateBrowsingNotifier(private val context: Context) {
             .setShowWhen(false)
             .setVisibility(NotificationCompat.VISIBILITY_SECRET)
             .build()
-        // Posting is refused without the permission, and the indicator is not
-        // worth a failure dialog, so the refusal is simply not shown.
+        // Posting is still guarded, because the permission can be revoked between
+        // the check above and this call.
         runCatching { manager.notify(ID, notification) }
             .onSuccess { posted = true }
     }
