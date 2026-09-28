@@ -17,9 +17,17 @@ import org.mozilla.geckoview.WebExtensionController
 
 data class ExtInfo(val id: String, val name: String, val sub: String)
 
+/** One row in the installable list: tapping it installs. */
+data class AddonRow(
+    val addon: LibreWolfDefaults.Addon,
+    val installed: Boolean,
+    val onClick: () -> Unit,
+)
+
 class ExtensionsActivity : AppCompatActivity() {
 
     private lateinit var adapter: ExtensionsAdapter
+    private lateinit var addonsAdapter: AddonsAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,12 +38,16 @@ class ExtensionsActivity : AppCompatActivity() {
             emptyList(),
             onRemove = { uninstall(it) },
         )
+        addonsAdapter = AddonsAdapter(emptyList())
+        findViewById<RecyclerView>(R.id.extensions_available_list).apply {
+            layoutManager = LinearLayoutManager(this@ExtensionsActivity)
+            adapter = this@ExtensionsActivity.addonsAdapter
+        }
         findViewById<RecyclerView>(R.id.extensions_list).apply {
             layoutManager = LinearLayoutManager(this@ExtensionsActivity)
             adapter = this@ExtensionsActivity.adapter
         }
         findViewById<View>(R.id.extensions_back).setOnClickListener { finish() }
-        findViewById<View>(R.id.install_ubo).setOnClickListener { confirmInstallUbo() }
         wireDelegates()
         reload()
     }
@@ -138,16 +150,25 @@ class ExtensionsActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmInstallUbo() {
+    /**
+     * Installs one add-on from its "latest" AMO URL.
+     *
+     * The confirmation shows the URL because this is a fetch from the network
+     * that hands the engine a file to run with page access, and a user who can
+     * see where it comes from can decide that is not acceptable. The failure is
+     * reported with the engine's own message, because the common case is a 404
+     * from a slug that no longer exists and the generic string would hide it.
+     */
+    private fun confirmInstall(addon: LibreWolfDefaults.Addon) {
         AlertDialog.Builder(this)
-            .setTitle(getString(R.string.install_ubo))
-            .setMessage(LibreWolfDefaults.UBO_AMO_URL)
-            .setPositiveButton(getString(R.string.install)) { _, _ -> installUbo() }
+            .setTitle(getString(R.string.install_addon, addon.name))
+            .setMessage(addon.url)
+            .setPositiveButton(getString(R.string.install)) { _, _ -> installAddon(addon) }
             .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
-    private fun installUbo() {
+    private fun installAddon(addon: LibreWolfDefaults.Addon) {
         val c = controller()
         if (c == null) {
             Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
@@ -155,7 +176,7 @@ class ExtensionsActivity : AppCompatActivity() {
         }
         Toast.makeText(this, getString(R.string.ext_installing), Toast.LENGTH_SHORT).show()
         try {
-            c.install(LibreWolfDefaults.UBO_AMO_URL).accept({ _ -> }, { _ -> })
+            c.install(addon.url).accept({ _ -> }, { _ -> })
         } catch (e: Exception) {
             Toast.makeText(this, "${getString(R.string.ext_install_failed)}: ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -166,9 +187,23 @@ class ExtensionsActivity : AppCompatActivity() {
         try {
             c.list().accept(
                 { list: List<WebExtension>? ->
+                    val installed = list ?: emptyList()
+                    // An add-on already present is matched by name, because the
+                    // engine reports its own id (a UUID for a WebExtension) and
+                    // the AMO slug has no relationship to it.
+                    val installedNames = installed.mapNotNull { it.metaData.name }.toSet()
                     runOnUiThread {
+                        addonsAdapter.update(
+                            LibreWolfDefaults.INSTALLABLE_ADDONS.map { addon ->
+                                AddonRow(
+                                    addon = addon,
+                                    installed = addon.name in installedNames,
+                                    onClick = { confirmInstall(addon) },
+                                )
+                            },
+                        )
                         adapter.update(
-                            (list ?: emptyList()).map {
+                            installed.map {
                                 ExtInfo(
                                     id = it.id,
                                     name = it.metaData.name ?: it.id,
@@ -179,6 +214,9 @@ class ExtensionsActivity : AppCompatActivity() {
                                 )
                             },
                         )
+                        // The installed header is meaningless with nothing under it.
+                        findViewById<View>(R.id.extensions_installed_header).visibility =
+                            if (installed.isEmpty()) View.GONE else View.VISIBLE
                     }
                 },
                 { _ -> },
@@ -234,6 +272,61 @@ class ExtensionsActivity : AppCompatActivity() {
             h.sub.text = e.sub
             h.sub.visibility = if (e.sub.isEmpty()) View.GONE else View.VISIBLE
             h.remove.setOnClickListener { onRemove(e) }
+        }
+
+        override fun getItemCount(): Int = items.size
+    }
+
+    /**
+     * The installable list. Reuses the installed-extension row so both lists
+     * read as the same kind of thing, with the trailing button becoming "Install"
+     * or a tick once it is already there.
+     */
+    class AddonsAdapter(
+        private var items: List<AddonRow>,
+    ) : RecyclerView.Adapter<AddonsAdapter.VH>() {
+
+        class VH(v: View) : RecyclerView.ViewHolder(v) {
+            val name: TextView = v.findViewById(R.id.ext_name)
+            val sub: TextView = v.findViewById(R.id.ext_sub)
+            val action: ImageButton = v.findViewById(R.id.ext_remove)
+        }
+
+        fun update(items: List<AddonRow>) {
+            this.items = items
+            notifyDataSetChanged()
+        }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
+            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_extension, parent, false)
+            return VH(v)
+        }
+
+        override fun onBindViewHolder(h: VH, position: Int) {
+            val row = items[position]
+            h.name.text = row.addon.name
+            h.sub.text = row.addon.summary
+            h.sub.visibility = View.VISIBLE
+            if (row.installed) {
+                // Already present. Tapping would reinstall the same add-on, so the
+                // row is inert and says why rather than inviting a no-op.
+                h.action.setImageResource(R.drawable.ic_shield)
+                h.action.contentDescription = row.addon.name
+                h.action.setOnClickListener { }
+                h.itemView.setOnClickListener { }
+                h.itemView.alpha = 0.6f
+                h.itemView.isEnabled = false
+            } else {
+                h.action.setImageResource(R.drawable.ic_add)
+                h.action.contentDescription = row.addon.name
+                // The whole row installs, not just the button: a 24dp target is
+                // below the comfortable minimum, and the card made this a
+                // comfortable target for free.
+                h.action.setOnClickListener { row.onClick() }
+                h.itemView.setOnClickListener { row.onClick() }
+                h.itemView.isEnabled = true
+                h.itemView.alpha = 1f
+            }
         }
 
         override fun getItemCount(): Int = items.size

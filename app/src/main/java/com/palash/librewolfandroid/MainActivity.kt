@@ -172,9 +172,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var geckoView: GeckoView
     private lateinit var browserControls: View
     private lateinit var homeOverlay: LinearLayout
-    private lateinit var homeShortcuts: LinearLayout
-    private lateinit var homeShortcutsList: LinearLayout
-    private lateinit var trackersText: TextView
+    private var trackersText: TextView? = null
     private lateinit var trayTrackersText: String
     private lateinit var progress: ProgressBar
     private lateinit var addressText: EditText
@@ -500,8 +498,7 @@ class MainActivity : AppCompatActivity() {
             if (isBlank(tab.url) || tab.url.startsWith("data:") || tab.isError) return
             if (success && !tab.isPrivate) {
                 historyStore.add(tab.title, tab.url)
-                if (tab.id == activeId) renderHomeShortcuts()
-            }
+                }
             if (tab.id == activeId) {
                 progress.visibility = View.GONE
                 updateAddress()
@@ -862,9 +859,6 @@ class MainActivity : AppCompatActivity() {
         geckoView = findViewById(R.id.geckoview)
         browserControls = findViewById(R.id.browser_controls)
         homeOverlay = findViewById(R.id.home_overlay)
-        homeShortcuts = findViewById(R.id.home_shortcuts)
-        homeShortcutsList = findViewById(R.id.home_shortcuts_list)
-        trackersText = findViewById(R.id.trackers_text)
         progress = findViewById(R.id.progress)
         addressText = findViewById(R.id.address_text)
         tabsCount = findViewById(R.id.tabs_count)
@@ -883,7 +877,16 @@ class MainActivity : AppCompatActivity() {
         addressText.setOnEditorActionListener { v, _, _ ->
             hideSuggestions()
             navigate((v as EditText).text.toString())
+            // clearFocus() alone does not always take the keyboard down: the
+            // editor keeps its window token until the IME is explicitly told, so
+            // the result loads behind a keyboard the user just dismissed.
             addressText.clearFocus()
+            // The IME holds its own window token, so clearing focus on the field
+            // is not enough to take the keyboard down; the result would load
+            // behind a keyboard the user has just dismissed.
+            (getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(addressText.windowToken, 0)
             true
         }
         addressText.setOnFocusChangeListener { _, focused ->
@@ -895,7 +898,11 @@ class MainActivity : AppCompatActivity() {
                 updateAddress()
             }
         }
-        addressText.setOnLongClickListener { showPageActions(); true }
+        // No long-press listener on the address field on purpose. Swallowing the
+        // long press replaced the platform's own text menu, so a user who wanted
+        // to select, cut or paste part of a URL could not. The page actions that
+        // used to live here are in the menu sheet instead, where they are
+        // reachable without a gesture that collides with text editing.
         addressText.doAfterTextChanged { text ->
             if (addressText.hasFocus()) updateSuggestions(text?.toString().orEmpty())
         }
@@ -1063,7 +1070,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::homeShortcutsList.isInitialized) renderHomeShortcuts()
         // Tapping or swiping the private-browsing reminder is only observable
         // here, on the way back into the app, so this is where the dismissal is
         // noticed. It also covers a launch that restored tabs without going
@@ -1414,7 +1420,6 @@ class MainActivity : AppCompatActivity() {
         // happens when nothing is loaded. Rendering here rather than in onCreate
         // keeps the parsing off the startup path for the common case of opening
         // the browser on a URL, where the overlay is never shown at all.
-        if (home) renderHomeShortcuts()
         updateAddress()
         updateEngineBadge()
         updateTrackers()
@@ -1519,7 +1524,9 @@ class MainActivity : AppCompatActivity() {
                 resources.getQuantityString(R.plurals.trackers_blocked, n, n)
             }
         }
-        trackersText.text = text
+        // The start page no longer carries a tracker pill; the figure lives on the
+        // tab tray, which is where a tab in front is actually identified.
+        trackersText?.text = text
         trayTrackersText = text
     }
 
@@ -1589,52 +1596,6 @@ class MainActivity : AppCompatActivity() {
         progress.visibility = View.GONE
         updateAddress()
         updateTrackers()
-        renderHomeShortcuts()
-    }
-
-    private fun renderHomeShortcuts() {
-        if (!::homeShortcutsList.isInitialized) return
-        homeShortcutsList.removeAllViews()
-        val tab = activeTab()
-        if (tab?.isPrivate == true) {
-            homeShortcuts.visibility = View.GONE
-            return
-        }
-        val history = historyStore.all()
-            .filter { it.url.startsWith("http://") || it.url.startsWith("https://") }
-            .distinctBy { it.url }
-            .take(6)
-        val bookmarks = bookmarkStore.all()
-            .filter { history.none { entry -> entry.url == it.url } }
-            .take((6 - history.size).coerceAtLeast(0))
-        val entries = history.map { it.url to it.title } + bookmarks.map { it.url to it.title }
-        val closed = sessionStore.closedTabs().firstOrNull()
-        if (entries.isEmpty() && closed == null) {
-            homeShortcuts.visibility = View.GONE
-            return
-        }
-        homeShortcuts.visibility = View.VISIBLE
-        fun addShortcut(label: String, url: String) {
-            val chip = TextView(this).apply {
-                text = label
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                setTextColor(getColor(R.color.librewolf_text))
-                setBackgroundResource(R.drawable.bg_card)
-                setPadding(dp(14), dp(10), dp(14), dp(10))
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                ).apply { marginEnd = dp(8) }
-                setOnClickListener { navigate(url) }
-            }
-            homeShortcutsList.addView(chip)
-        }
-        entries.forEach { (url, title) ->
-            val host = Uri.parse(url).host?.removePrefix("www.") ?: url
-            addShortcut(title.ifBlank { host }.take(42), url)
-        }
-        closed?.let { addShortcut(getString(R.string.recently_closed), it.url) }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -1988,10 +1949,10 @@ class MainActivity : AppCompatActivity() {
             }
             onQuit = { askQuit() }
             onPrivacyReport = { showPrivacyReport() }
-            onHome = { goHome() }
             canInstallPwa = webAppManifest != null && webAppUrl != null
             onInstallPwa = { installWebApp() }
             isHomepage = activeTab()?.isHome ?: true
+            pageActions = pageActions()
         }
         menuSheet = sheet
         sheet.show(supportFragmentManager, "menu")
@@ -2217,57 +2178,39 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Page actions (long-press the address bar). */
-    private fun showPageActions() {
-        val tab = activeTab() ?: return
-        val actions = mutableListOf<Pair<String, () -> Unit>>()
-        actions += if (tab.isLoading) {
-            getString(R.string.stop) to { tab.session.stop() }
-        } else {
-            getString(R.string.reload) to {
-                if (tab.isError) tab.session.loadUri(tab.url) else tab.session.reload()
-            }
-        }
-        if (tab.canGoForward) actions += getString(R.string.forward) to { tab.session.goForward() }
-        sessionStore.closedTabs().firstOrNull()?.let { closed ->
-            actions += getString(R.string.reopen_closed_tab) to {
-                sessionStore.popClosed()
-                openUrlInNewTab(closed.url, true)
-            }
-        }
-        if (!tab.isHome) {
-            actions += getString(R.string.find_in_page) to { showFindInPage(tab) }
-            if (loginStore.forOrigin(tab.url).isNotEmpty()) {
-                actions += getString(R.string.fill_login) to { fillLoginFromVault(tab) }
-            }
-            actions += getString(if (store.desktopMode) R.string.request_mobile_site else R.string.request_desktop_site) to {
-                store.desktopMode = !store.desktopMode
-                tab.session.settings.userAgentMode =
-                    if (store.desktopMode) GeckoSessionSettings.USER_AGENT_MODE_DESKTOP else GeckoSessionSettings.USER_AGENT_MODE_MOBILE
-                tab.session.settings.viewportMode =
-                    if (store.desktopMode) GeckoSessionSettings.VIEWPORT_MODE_DESKTOP else GeckoSessionSettings.VIEWPORT_MODE_MOBILE
-                tab.session.reload()
-            }
-        }
-        actions += getString(R.string.share) to { shareCurrent() }
-        actions += getString(R.string.erase_data) to { sanitize(keepPage = false) }
-        actions += getString(R.string.add_bookmark) to {
-            if (!tab.isHome && tab.url.isNotEmpty()) {
-                if (bookmarkStore.add(tab.title, tab.url)) {
-                    Toast.makeText(this, R.string.bookmark_added, Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, R.string.already_bookmarked, Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        actions += getString(R.string.add_login) to {
-            startActivity(
-                Intent(this, PasswordsActivity::class.java)
-                    .putExtra(PasswordsActivity.EXTRA_SITE, if (tab.isHome) "" else tab.url),
-            )
-        }
-        AlertDialog.Builder(this)
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
-            .show()
+    /**
+     * The actions that apply to the page in front, rendered as a horizontal row
+     * at the top of the menu sheet.
+     *
+     * This was a dialog behind a long press on the address bar, which meant the
+     * only route to reload, find-in-page or request-desktop was a gesture that
+     * also swallowed the platform's own text menu. In the sheet it is reachable
+     * without colliding with editing, and it sits above the navigation rows
+     * because it acts on the page rather than moving around the app.
+     *
+     * Add bookmark and Save login are deliberately absent: both are one tap away
+     * from the menu's own Bookmarks and Passwords rows, and repeating them here
+     * only gave two ways to reach the same screen.
+     */
+    private fun pageActions(): List<MenuSheet.PageAction> {
+        val tab = activeTab() ?: return emptyList()
+        // Exactly four, always four, always these four. The grid is four columns
+        // and always visible, so a set that grew or shrank would leave a ragged
+        // gap or an empty row. The Home tile is here because "go back to the
+        // start page" is the one navigation a reader reaches for from any page.
+        return listOf(
+            MenuSheet.PageAction(
+                getString(if (tab.isLoading) R.string.stop else R.string.reload),
+                if (tab.isLoading) R.drawable.ic_stop else R.drawable.ic_reload,
+            ) {
+                if (tab.isLoading) tab.session.stop()
+                else if (tab.isError) tab.session.loadUri(tab.url)
+                else tab.session.reload()
+            },
+            MenuSheet.PageAction(getString(R.string.homepage), R.drawable.ic_home) { goHome() },
+            MenuSheet.PageAction(getString(R.string.back), R.drawable.ic_back) { tab.session.goBack() },
+            MenuSheet.PageAction(getString(R.string.share), R.drawable.ic_share) { shareCurrent() },
+        )
     }
 
     private fun showFindInPage(tab: Tab) {

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The search field's background, shared by the toolbar in activity_main.xml and
+     the tab sheet's search in sheet_tabs.xml.
+
+     12dp on a 46dp field: a rounded rectangle, not a pill. The previous 23dp
+     equalled half the height, which made the ends fully round. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="@color/librewolf_card" />
-    <corners android:radius="23dp" />
+    <corners android:radius="12dp" />
 </shape>

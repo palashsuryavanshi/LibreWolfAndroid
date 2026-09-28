@@ -29,49 +29,42 @@
             android:textSize="24sp" />
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/install_ubo"
-        android:layout_width="match_parent"
+    <!-- No separate uBlock banner. uBlock Origin is the first row of the
+         installable list below, drawn in this same card style, so a banner above
+         it would show the same extension twice in two different shapes. -->
+
+    <TextView
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:background="@drawable/bg_card"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="16dp">
+        android:layout_marginTop="4dp"
+        android:text="@string/extensions_available"
+        android:textColor="@color/librewolf_grey"
+        android:textSize="14sp" />
 
-        <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginEnd="16dp"
-            android:src="@drawable/ic_add" />
+    <!-- The installable list, above the installed list, because installing is
+         the thing a user opens this screen to do. -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/extensions_available_list"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:nestedScrollingEnabled="false" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/install_ubo"
-                android:textColor="@color/librewolf_text"
-                android:textSize="17sp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/install_ubo_sub"
-                android:textColor="@color/librewolf_grey"
-                android:textSize="14sp" />
-        </LinearLayout>
-    </LinearLayout>
+    <TextView
+        android:id="@+id/extensions_installed_header"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="12dp"
+        android:text="@string/extensions_installed"
+        android:textColor="@color/librewolf_grey"
+        android:textSize="14sp" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/extensions_list"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_marginTop="8dp" />
+        android:layout_height="0dp"
+        android:layout_marginTop="4dp"
+        android:layout_weight="1" />
 </LinearLayout>

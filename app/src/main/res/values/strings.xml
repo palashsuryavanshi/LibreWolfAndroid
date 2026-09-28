@@ -11,7 +11,6 @@
         <item quantity="one">%1$d threat blocked</item>
         <item quantity="other">%1$d threats blocked</item>
     </plurals>
-    <string name="most_visited">Most visited</string>
     <string name="menu">Menu</string>
     <string name="close">Close</string>
     <string name="tabs">Tabs</string>
@@ -30,6 +29,9 @@
     <string name="settings">Settings</string>
     <string name="extensions">Extensions</string>
     <string name="extensions_sub">Install add-ons from Mozilla AMO</string>
+    <string name="extensions_available">Available to install</string>
+    <string name="extensions_installed">Installed</string>
+    <string name="install_addon">Install %1$s?</string>
     <string name="extensions_unsupported">Extensions are not supported in this build.</string>
     <string name="history">History</string>
     <string name="bookmarks">Bookmarks</string>
@@ -40,7 +42,6 @@
     <string name="goto_title">Enter address</string>
     <string name="about_title">About LibreWolf Android</string>
     <string name="open_site">Open site</string>
-    <string name="recently_closed">Recently closed tabs</string>
     <string name="today">Today</string>
     <string name="yesterday">Yesterday</string>
     <string name="older">Older</string>
@@ -77,9 +78,7 @@
     <string name="sort_title">Title</string>
     <string name="sort_folder">Folder</string>
     <string name="remove_bookmark">Remove bookmark</string>
-    <string name="bookmark_added">Bookmark added</string>
     <string name="bookmark_removed">Bookmark removed</string>
-    <string name="already_bookmarked">Already bookmarked</string>
     <string name="filter_all">All</string>
     <string name="filter_images">Images</string>
     <string name="filter_docs">Documents</string>
@@ -212,8 +211,6 @@
     <string name="copy_password">Copy password</string>
     <string name="save">Save</string>
     <string name="vault_note">Stored encrypted on this device only. LibreWolf disables the built-in password manager and Sync.</string>
-    <string name="install_ubo">Install uBlock Origin</string>
-    <string name="install_ubo_sub">Recommended blocker, from Mozilla add-ons</string>
     <string name="install">Install</string>
     <string name="allow">Allow</string>
     <string name="deny">Deny</string>
@@ -326,6 +323,7 @@
     <string name="take_photo">Take photo</string>
     <string name="choose_file">Choose file</string>
     <string name="forward">Forward</string>
+    <string name="back">Back</string>
     <string name="stop">Stop loading</string>
     <string name="find_in_page">Find in page</string>
     <string name="find_hint">Text to find</string>

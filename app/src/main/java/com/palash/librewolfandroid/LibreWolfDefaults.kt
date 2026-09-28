@@ -29,8 +29,49 @@ object LibreWolfDefaults {
     // policies.json: uBlock preinstalled. GeckoView's strict Enhanced Tracking
     // Protection already blocks known trackers natively, so no stub list needed.
     const val GECKOVIEW_VERSION = "147.0.20260212191108"
-    const val UBO_AMO_URL =
-        "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+
+    /**
+     * One entry in the installable list.
+     *
+     * The slug is the AMO add-on id, not the display name. They differ for
+     * several of these -- Dark Reader is "darkreader", SingleFile is "single-file",
+     * NoScript is "noscript" -- and a slug that looks right but is wrong returns
+     * 404 at install time rather than failing visibly in the build, so each was
+     * checked by fetching the download URL and confirming a 200 with an
+     * application/x-xpinstall response.
+     *
+     * A "latest" URL is used rather than a pinned file id so the add-on updates
+     * itself when the user reinstalls, and so no URL here rots.
+     */
+    data class Addon(val slug: String, val name: String, val summary: String) {
+        val url: String
+            get() = "https://addons.mozilla.org/firefox/downloads/latest/$slug/latest.xpi"
+    }
+
+    /**
+     * Offered in the Extensions screen. Blocker and privacy tools first because
+     * that is what this browser is for; the rest after.
+     *
+     * Deliberately absent: Privacy Badger. Its AMO listing 404s and its download
+     * URL does not resolve, so there is nothing to install. Listing it would
+     * offer a row that cannot work.
+     */
+    val INSTALLABLE_ADDONS = listOf(
+        Addon("ublock-origin", "uBlock Origin", "Blocks ads and trackers"),
+        Addon("clearurls", "ClearURLs", "Strips tracking parameters from links"),
+        Addon("ghostery", "Ghostery", "Blocks trackers and warns on data tracking"),
+        Addon("cookie-autodelete", "Cookie AutoDelete", "Removes cookies on a schedule you set"),
+        Addon("leechblock-ng", "LeechBlock NG", "Blocks sites on a schedule"),
+        Addon("darkreader", "Dark Reader", "Dark theme for websites, generated on the fly"),
+        Addon("noscript", "NoScript Security Suite", "Blocks scripts and trackers by default"),
+        Addon("sponsorblock", "SponsorBlock", "Skips sponsorships in videos"),
+        Addon("video-background-play-fix", "Video Background Play Fix", "Keeps video playing in the background"),
+        Addon("single-file", "SingleFile", "Saves a complete copy of a page"),
+        Addon("search-by-image", "Search by Image", "Reverse image search from the context menu"),
+        Addon("google-search-fixer", "Google Search Fixer", "Unbreaks Google search on Firefox"),
+        Addon("twp-translate-for-mobile", "TWP - Translate For Mobile", "Translate pages in place"),
+        Addon("tampermonkey", "Tampermonkey", "Runs user scripts on pages you choose"),
+    )
 
     // librewolf.cfg: query stripping list (privacy.query_stripping.strip_list),
     // wired to GeckoView's native query-parameter stripping.
