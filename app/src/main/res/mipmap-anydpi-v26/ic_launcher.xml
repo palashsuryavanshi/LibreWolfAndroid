@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive launcher icon. Foreground is the supplied logo artwork scaled to
+     the 66dp safe zone with its transparency intact; no circular or rounded
+     square mask is baked in, the launcher applies its own shape. Background
+     is the logo disc blue, sampled from the artwork, so the disc runs
+     seamlessly to the mask edge. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/librewolf_bg" />
+    <background android:drawable="@color/ic_launcher_background" />
     <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>

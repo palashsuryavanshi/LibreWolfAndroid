@@ -11,4 +11,9 @@
     <color name="librewolf_icon_on_accent">#FFFFFF</color>
     <color name="librewolf_address">#E8EEF8</color>
     <color name="librewolf_thumbnail">#E9E9EF</color>
+    <!-- Launcher icon background. The exact blue sampled from the logo disc
+         (logo/app-icon.png), so the disc continues seamlessly to the launcher
+         mask edge with no visible seam. Deliberately NOT in values-night:
+         the icon must be deterministic and never follow the system theme. -->
+    <color name="ic_launcher_background">#01ADFF</color>
 </resources>
