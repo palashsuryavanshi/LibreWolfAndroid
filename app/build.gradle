@@ -36,7 +36,7 @@ android {
         // refuses and for which the only remedy is an uninstall -- and an
         // uninstall deletes the user's history, bookmarks, cookies and vault.
         versionCode 156004
-        versionName '1.2-beta1'
+        versionName '1.2beta2'
 
         // Mirrors source/version + source/release (desktop LibreWolf base). Kept
         // separate from versionName so About can show what this app is and what
