@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+app/build/
+gradle-app.setting
+*.log
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.iws
+local.properties
+captures/
+
+# Keystore signing secrets — never commit real keys
+*.jks
+*.keystore
+# Release signing credentials: points at a .jks kept outside the repo, and holds
+# its passwords. Losing this file and the key it names is unrecoverable, so back
+# both up somewhere you will still have them.
+keystore.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Gradle wrapper jar is intentionally committed so builds work out of the box
+!gradle/wrapper/gradle-wrapper.jar

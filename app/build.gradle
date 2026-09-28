@@ -1,0 +1,135 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing. Neither the key nor its passwords are in the repository:
+// keystore.properties (gitignored) holds the path to a .jks that lives outside
+// the repo entirely, so a clone, a mirror or a zip of the project directory
+// cannot leak it.
+//
+// If the file is absent -- a fresh clone, a contributor, CI -- the release
+// variant still builds and produces -unsigned.apk. That is deliberate: nobody
+// should be locked out of building by a secret they do not have. The release
+// job in CI depends on this, since it has no key.
+def signingPropsFile = rootProject.file('keystore.properties')
+def signingProps = new Properties()
+def hasReleaseKey = signingPropsFile.exists()
+if (hasReleaseKey) {
+    signingPropsFile.withInputStream { signingProps.load(it) }
+    logger.lifecycle("Release signing key found; release artifacts will be signed as '${signingProps['keyAlias']}'.")
+} else {
+    logger.lifecycle('No keystore.properties; release artifacts will be UNSIGNED.')
+}
+
+android {
+    namespace 'com.palash.librewolfandroid'
+    compileSdk 37
+    buildToolsVersion '36.1.0'
+
+    defaultConfig {
+        applicationId 'com.palash.librewolfandroid'
+        minSdk 26
+        targetSdk 34
+        // versionCode must strictly increase for an update to install over an
+        // existing copy. v1.0 shipped 156001, so a release that reuses it cannot
+        // be installed as an update at all: Android treats an equal or lower code
+        // as a downgrade, and the user's only remedy is to uninstall, which
+        // deletes their history, bookmarks, cookies and password vault.
+        versionCode 156002
+        versionName '1.1'
+
+        // Mirrors source/version + source/release (desktop LibreWolf base). Kept
+        // separate from versionName so About can show what this app is and what
+        // engine it is based on without conflating the two.
+        buildConfigField 'String', 'UPSTREAM_FIREFOX', '"156.0"'
+        buildConfigField 'String', 'LIBREWOLF_RELEASE', '"1"'
+    }
+
+    // GeckoView ships one libxul.so per ABI (~143-155 MB each, stored
+    // uncompressed for mmap). A single fat APK carried all three (~300 MB);
+    // per-ABI splits give every device only its own engine, halving download
+    // size with zero feature/quality loss.
+    splits {
+        abi {
+            enable true
+            reset()
+            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+            universalApk false
+        }
+    }
+
+    // Aggressive size mode: native libs are deflated inside the APK instead of
+    // stored uncompressed for direct mmap. Roughly halves the download
+    // (libxul.so 143 MB -> ~65 MB) at the cost of extraction at install time
+    // (slightly slower first launch, marginally more installed storage).
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
+
+    signingConfigs {
+        releaseSigning {
+            if (hasReleaseKey) {
+                storeFile rootProject.file(signingProps['storeFile'])
+                storePassword signingProps['storePassword']
+                keyAlias signingProps['keyAlias']
+                keyPassword signingProps['keyPassword']
+                // minSdk is 26, so v2 (Android 7.0) already covers every
+                // supported device and v1/JAR signing buys nothing but install
+                // time. v2 also covers the whole APK, which is what closes the
+                // Janus hole (CVE-2017-13156).
+                enableV1Signing false
+                enableV2Signing true
+                // v3 is what makes a future signing-key rotation possible while
+                // updates stay installable. There is no Play App Signing here to
+                // recover a lost key from, so rotation is the only safety net
+                // this project has.
+                enableV3Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Absent the key, this stays null and the variant emits -unsigned.apk.
+            signingConfig hasReleaseKey ? signingConfigs.releaseSigning : null
+            minifyEnabled true
+            // Resource shrinking is off on purpose. AGP runs the resource
+            // shrinker once per ABI split and then cannot decide which of the
+            // three outputs it is meant to package, so the release variant fails
+            // with "Multiple shrunk-resources files found". Since the per-ABI
+            // splits are what halve the download, they stay and the resource
+            // shrinker goes; R8 code minification is the part that matters, and
+            // the unused resources are a handful of drawables.
+            shrinkResources false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    // GeckoView 147: newest stable hopefully still targeting compileSdk ≤37.0
+    // (154/155 demand 37.1, which has no stable platform).
+    implementation 'org.mozilla.geckoview:geckoview:147.0.20260212191108'
+    // AGP 9.4 embeds Kotlin 2.2.0: force stdlib metadata it can read.
+    // (Dependency constraints can't downgrade; force can.)
+    configurations.all {
+        resolutionStrategy {
+            force 'org.jetbrains.kotlin:kotlin-stdlib:2.2.20'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.20'
+            force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.20'
+        }
+    }
+}

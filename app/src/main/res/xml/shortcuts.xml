@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_tab"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/new_tab"
+        android:shortcutLongLabel="@string/new_tab">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetClass="com.palash.librewolfandroid.MainActivity"
+            android:targetPackage="com.palash.librewolfandroid" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="private_tab"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/new_private_tab"
+        android:shortcutLongLabel="@string/new_private_tab">
+        <intent
+            android:action="com.palash.librewolfandroid.PRIVATE_TAB"
+            android:targetClass="com.palash.librewolfandroid.MainActivity"
+            android:targetPackage="com.palash.librewolfandroid" />
+    </shortcut>
+</shortcuts>

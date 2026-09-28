@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="librewolf_bg">#F7F7FA</color>
+    <color name="librewolf_card">#FFFFFF</color>
+    <color name="librewolf_card2">#E9E7FF</color>
+    <color name="librewolf_accent">#6750A4</color>
+    <color name="librewolf_text">#1B1B1F</color>
+    <color name="librewolf_grey">#5F6368</color>
+    <color name="librewolf_danger">#B3261E</color>
+    <color name="librewolf_chip_stroke">#D5D2E5</color>
+    <color name="librewolf_icon_on_accent">#FFFFFF</color>
+    <color name="librewolf_address">#E8EEF8</color>
+    <color name="librewolf_thumbnail">#E9E9EF</color>
+</resources>

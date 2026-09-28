@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_new_tab" android:title="@string/new_tab" />
+    <item android:id="@+id/action_new_private_tab" android:title="@string/new_private_tab" />
+    <item android:id="@+id/action_home" android:title="@string/homepage" />
+    <item android:id="@+id/action_reload" android:title="@string/reload" />
+    <item android:id="@+id/action_share" android:title="@string/share" />
+    <item android:id="@+id/action_erase" android:title="@string/erase_data" />
+    <item android:id="@+id/action_settings" android:title="@string/settings" />
+    <item android:id="@+id/action_about" android:title="@string/about_title" />
+</menu>

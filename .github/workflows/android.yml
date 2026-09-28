@@ -1,0 +1,65 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main, beta]
+  pull_request:
+    branches: [main, beta]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      # v3 defaulted to installing the "tools" package, which Google has removed
+      # from the SDK repository. sdkmanager then failed with "Failed to find
+      # package 'tools'" and the job died before Gradle was ever invoked, so
+      # every run failed and nothing was ever actually built or linted. v4
+      # defaults to platform-tools, which still exists.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      # GeckoView needs compileSdk 37, which only exists as a beta platform.
+      # Mirror the local dev setup: alias it as a stable android-37 platform.
+      - name: Alias beta API 37 platform as android-37
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.2-beta3"
+          cp -r "$ANDROID_HOME/platforms/android-37.2-beta3" "$ANDROID_HOME/platforms/android-37"
+          sed -i 's|path="platforms;android-37.2-beta3"|path="platforms;android-37"|' "$ANDROID_HOME/platforms/android-37/package.xml"
+          sed -i 's|<api-level>37.1</api-level>|<api-level>37</api-level>|' "$ANDROID_HOME/platforms/android-37/package.xml"
+          sed -i 's/^AndroidVersion.ApiLevel=37.1$/AndroidVersion.ApiLevel=37/' "$ANDROID_HOME/platforms/android-37/source.properties"
+          sed -i 's/^ro.build.version.codename=DEV$/ro.build.version.codename=REL/' "$ANDROID_HOME/platforms/android-37/build.prop"
+
+      - name: Lint debug shell
+        run: ./gradlew :app:lintDebug --no-daemon
+
+      - name: Build debug APKs (per-ABI splits)
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Build release APKs and bundle (R8)
+        # The release variant is built here because R8 breakage is invisible to
+        # a debug build: a stripped or renamed engine callback only shows up when
+        # the app runs a minified build. Unsigned on purpose; the signing key is
+        # not in the repository.
+        run: ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: librewolf-debug-apks
+          path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: librewolf-release-unsigned
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab

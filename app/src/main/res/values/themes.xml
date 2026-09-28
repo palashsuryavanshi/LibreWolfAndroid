@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.LibreWolf" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/librewolf_accent</item>
+        <item name="colorOnPrimary">@color/librewolf_icon_on_accent</item>
+        <item name="android:windowBackground">@color/librewolf_bg</item>
+        <item name="android:statusBarColor">@color/librewolf_bg</item>
+        <item name="android:navigationBarColor">@color/librewolf_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>

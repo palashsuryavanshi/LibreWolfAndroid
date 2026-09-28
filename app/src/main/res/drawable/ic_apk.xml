@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="@color/librewolf_text"
+        android:pathData="M7,9 H5.5 v9.5 a1.5,1.5 0 0,0 1.5,1.5 h10 a1.5,1.5 0 0,0 1.5,-1.5 V9 H17 v8 H7 ZM8.5,9 V7 a3.5,3.5 0 0,1 7,0 v2 h-2 V7 a1.5,1.5 0 0,0 -3,0 v2 Z" />
+    <path android:fillColor="@color/librewolf_text"
+        android:pathData="M9.5,12.5m-1.2,0a1.2,1.2 0 1,0 2.4,0a1.2,1.2 0 1,0 -2.4,0M12.3,12.5m-1.2,0a1.2,1.2 0 1,0 2.4,0a1.2,1.2 0 1,0 -2.4,0M5,3.5 L3.8,5 L6,6.5 ZM19,3.5 L20.2,5 L18,6.5 Z" />
+</vector>

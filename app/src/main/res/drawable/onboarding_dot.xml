@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Page indicator: the filled dot is the current page, the rest are hollow. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <shape android:shape="oval">
+            <solid android:color="@color/librewolf_accent" />
+            <size android:width="8dp" android:height="8dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/librewolf_chip_stroke" />
+            <size android:width="8dp" android:height="8dp" />
+        </shape>
+    </item>
+</selector>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_back" android:title="Back" />
+    <item android:id="@+id/action_forward" android:title="Forward" />
+    <item android:id="@+id/action_reload" android:title="Reload" />
+    <item android:id="@+id/action_clear" android:title="Erase browsing data" />
+    <item android:id="@+id/action_settings" android:title="Settings" />
+    <item android:id="@+id/action_about" android:title="About" />
+</menu>
