@@ -637,9 +637,9 @@ uninstall — which deletes their history, bookmarks, cookies and password vault
 
 ### Continuous integration
 
-Pushes to `main` and `beta` trigger `.github/workflows/android.yml`, which lints,
-builds the debug splits, builds the release splits and the AAB, and uploads both
-as artifacts.
+Pushes to `beta` trigger `.github/workflows/android.yml`, which lints, builds the
+debug splits, builds the release splits and the AAB, and uploads both as
+artifacts. `beta` is the only branch and the repository default.
 
 **CI runs no device and no emulator test**, and it has no signing key, so its
 release artifacts are unsigned. Green CI means it compiles and lints. It does not

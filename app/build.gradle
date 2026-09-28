@@ -31,9 +31,9 @@ android {
         minSdk 26
         targetSdk 34
         // versionCode must strictly increase for an update to install over an
-        // existing copy. main is at 156003, so the beta line starts at 156004;
-        // reusing or lowering it would make this a downgrade, which Android
-        // refuses and for which the only remedy is an uninstall -- and an
+        // existing copy. The published v1.1.1 is at 156003, so this line starts
+        // at 156004; reusing or lowering it would make this a downgrade, which
+        // Android refuses and for which the only remedy is an uninstall -- and an
         // uninstall deletes the user's history, bookmarks, cookies and vault.
         versionCode 156004
         versionName '1.2beta2'
