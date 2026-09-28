@@ -131,6 +131,26 @@ fallback — see [Known oddities](#known-oddities).
 
 ---
 
+## Screenshots
+
+All three taken on a Pixel 9a running v1.2beta2, dark theme.
+
+| Start page | Add-ons | Privacy settings |
+|---|---|---|
+| <img src="assets/screenshot-start-page.png" width="240" alt="Start page: LibreWolf logo top left, wordmark top right, rounded search bar and menu at the bottom"> | <img src="assets/screenshot-extensions.png" width="240" alt="Extensions screen listing fourteen add-ons available to install, each with a plus button"> | <img src="assets/screenshot-privacy-settings.png" width="240" alt="Privacy and Security settings showing tracking protection, fingerprinting, cookies, HTTPS-only, secure DNS and the privacy report"> |
+
+The **start page** carries the LibreWolf logo top-left and the wordmark
+top-right, with the address bar, tab count and menu along the bottom.
+
+The **Extensions** screen offers fourteen add-ons from Mozilla AMO as tappable
+cards. See [Add-ons](#add-ons) for what each one does and the caveats.
+
+**Privacy & Security** is where the defaults live, each showing its current
+value: strict tracking protection, blocked third-party cookies, HTTPS-only in
+all tabs, and a privacy report counting trackers and threats separately.
+
+---
+
 ## First run
 
 A short onboarding explains the project's provenance and what the privacy
