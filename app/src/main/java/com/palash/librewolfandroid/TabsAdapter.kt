@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.card.MaterialCardView
 
@@ -70,9 +71,32 @@ class TabsAdapter(
         val close: ImageButton = v.findViewById(R.id.tab_close)
     }
 
+    /**
+     * Progress ticks, title changes and location changes all funnel through
+     * here, up to ~100 times per page load. A full rebind each time meant the
+     * tray re-created every row while a page loaded underneath it -- and
+     * re-setting the adapter reset the scroll position, so opening the tray
+     * mid-load visibly jumped. Items are stable by id and contents compare by
+     * value (the favicon bitmaps come from a cache, so identical instances
+     * compare identical), which is exactly what DiffUtil wants: ticks that
+     * change nothing dispatch nothing.
+     */
     fun update(tabs: List<TabItem>) {
+        val old = this.tabs
         this.tabs = tabs
-        notifyDataSetChanged()
+        DiffUtil.calculateDiff(
+            object : DiffUtil.Callback() {
+                override fun getOldListSize(): Int = old.size
+
+                override fun getNewListSize(): Int = tabs.size
+
+                override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean =
+                    old[oldPos].id == tabs[newPos].id
+
+                override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean =
+                    old[oldPos] == tabs[newPos]
+            },
+        ).dispatchUpdatesTo(this)
     }
 
     fun get(position: Int): TabItem? = tabs.getOrNull(position)
@@ -137,8 +161,27 @@ class GroupedTabsAdapter(
 
     fun update(items: List<TabItem>) {
         this.items = items
-        this.rows = build(items)
-        notifyDataSetChanged()
+        val old = rows
+        val fresh = build(items)
+        rows = fresh
+        DiffUtil.calculateDiff(
+            object : DiffUtil.Callback() {
+                override fun getOldListSize(): Int = old.size
+
+                override fun getNewListSize(): Int = fresh.size
+
+                private fun key(r: Row): Any = when (r) {
+                    is Row.Header -> "h:${r.domain}"
+                    is Row.TabRow -> "t:${r.item.id}"
+                }
+
+                override fun areItemsTheSame(oldPos: Int, newPos: Int): Boolean =
+                    key(old[oldPos]) == key(fresh[newPos])
+
+                override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean =
+                    old[oldPos] == fresh[newPos]
+            },
+        ).dispatchUpdatesTo(this)
     }
 
     override fun getItemViewType(position: Int): Int =

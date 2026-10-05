@@ -67,6 +67,11 @@ class MainActivity : AppCompatActivity() {
         val isPrivate: Boolean = false,
         var isHome: Boolean = true,
         var suspended: Boolean = false,
+        // Restored tabs carry their URL as metadata only: the session starts
+        // at about:blank and the page loads on first selection. Loading every
+        // restored tab at startup meant N sessions fetching at once in front
+        // of the first paint.
+        var needsLoad: Boolean = false,
         // GeckoView opens popup sessions itself after onNewSession returns. Select
         // the popup only after that asynchronous open has completed.
         var selectWhenOpened: Boolean = false,
@@ -179,6 +184,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabsCount: TextView
     private var suggestionsAdapter: SuggestionsAdapter? = null
     private var suggestionsBox: android.view.ViewGroup? = null
+    /**
+     * Suggestion inputs, cached. updateSuggestions used to re-parse the whole
+     * history and bookmark JSON on every keystroke -- three full parses per
+     * character on the main thread. The lists only change when a page loads
+     * (this activity) or when History/Bookmarks screens edit them (while this
+     * activity is stopped), so a cache invalidated on resume and on local
+     * write is always fresh and never parsed twice for the same content.
+     */
+    private var suggestionHistory: List<HistoryEntry>? = null
+    private var suggestionBookmarks: List<Bookmark>? = null
+    private val suggestionHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var suggestionPending: Runnable? = null
     private var menuSheet: MenuSheet? = null
     private var tabsSheet: TabsSheet? = null
     private var fullscreenSession: GeckoSession? = null
@@ -186,6 +203,9 @@ class MainActivity : AppCompatActivity() {
     private var webAppUrl: String? = null
     private var webAppIconUrl: String? = null
     private var immersiveMode = false
+    // True only between the Quit confirmation and process end. See askQuit
+    // and onDestroy: destruction alone must not wipe user data.
+    private var quitting = false
 
     /** Origin the browser was launched for from a pinned web-app shortcut. */
     private var webAppOrigin: String? = null
@@ -227,7 +247,20 @@ class MainActivity : AppCompatActivity() {
 
     /** Address-bar suggestions driven by Settings > Search. */
     private fun updateSuggestions(raw: String) {
-        val box = findViewById<android.view.ViewGroup>(R.id.suggestions_box)
+        // Keystrokes arrive faster than a parse-and-render cycle matters: wait
+        // for a pause before doing the work, and drop whatever is still queued
+        // when the box hides (navigation, focus loss) so a stale run cannot
+        // pop the box back open after it was dismissed.
+        suggestionPending?.let { suggestionHandler.removeCallbacks(it) }
+        val job = Runnable { updateSuggestionsNow() }
+        suggestionPending = job
+        suggestionHandler.postDelayed(job, 120)
+    }
+
+    private fun updateSuggestionsNow() {
+        suggestionPending = null
+        val raw = if (addressText.hasFocus()) addressText.text.toString() else return
+        val box = suggestionsBox ?: findViewById<android.view.ViewGroup>(R.id.suggestions_box)
         suggestionsBox = box
         val text = raw.trim()
         val private = activeTab()?.isPrivate == true
@@ -237,8 +270,15 @@ class MainActivity : AppCompatActivity() {
 
         if (text.isNotEmpty()) {
             if (suggestionsOn) {
+                // One parse per run, not three: history is read once and shared
+                // by the matches below and the recent-search row.
+                val history = if (store.searchHistory || (store.showRecentSearches && !private)) {
+                    suggestionHistory ?: historyStore.all().also { suggestionHistory = it }
+                } else {
+                    emptyList()
+                }
                 if (store.searchHistory) {
-                    historyStore.all()
+                    history
                         .filter { it.title.contains(text, true) || it.url.contains(text, true) }
                         .take(4)
                         .forEach { e ->
@@ -250,7 +290,9 @@ class MainActivity : AppCompatActivity() {
                         }
                 }
                 if (store.searchBookmarks) {
-                    bookmarkStore.all()
+                    val bookmarks = suggestionBookmarks
+                        ?: bookmarkStore.all().also { suggestionBookmarks = it }
+                    bookmarks
                         .filter { it.title.contains(text, true) || it.url.contains(text, true) }
                         .take(3)
                         .forEach { b ->
@@ -260,7 +302,7 @@ class MainActivity : AppCompatActivity() {
                         }
                 }
                 if (store.showRecentSearches && !private) {
-                    historyStore.all().firstOrNull { it.url != text }?.let { e ->
+                    history.firstOrNull { it.url != text }?.let { e ->
                         if (items.none { it.sub == e.url }) {
                             items.add(
                                 Suggestion(
@@ -317,6 +359,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideSuggestions() {
+        suggestionPending?.let { suggestionHandler.removeCallbacks(it) }
+        suggestionPending = null
         suggestionsBox?.visibility = View.GONE
     }
 
@@ -394,7 +438,15 @@ class MainActivity : AppCompatActivity() {
                     webAppUrl = null
                     webAppIconUrl = null
                 }
-                tab.url = url
+                // A fresh session reports an initial about:blank location commit
+                // when it opens, carrying no navigation. Applied blindly it wipes
+                // a URL the tab already holds -- restored tabs lost their URLs to
+                // this within milliseconds of creation, and the next save then
+                // dropped them from restore entirely. The commit is only ever
+                // informative on a tab that has nothing yet.
+                if (url != "about:blank" || (tab.url.isBlank() || tab.url == "about:blank")) {
+                    tab.url = url
+                }
             }
             if (tab.id == activeId) {
                 updateAddress()
@@ -417,7 +469,13 @@ class MainActivity : AppCompatActivity() {
             error: WebRequestError,
         ): GeckoResult<String> {
             val tab = tabFor(session)
-            if (tab != null) tab.isError = true
+            if (tab != null) {
+                tab.isError = true
+                // The error document Gecko loads next reports its own progress
+                // callbacks, but if it never does the spinner would stick on
+                // the failed state. Clear it here; a real load re-sets it.
+                tab.isLoading = false
+            }
             if (tab?.id == activeId) {
                 progress.visibility = View.GONE
                 homeOverlay.visibility = View.GONE
@@ -498,7 +556,14 @@ class MainActivity : AppCompatActivity() {
             if (isBlank(tab.url) || tab.url.startsWith("data:") || tab.isError) return
             if (success && !tab.isPrivate) {
                 historyStore.add(tab.title, tab.url)
+                suggestionHistory = null
                 }
+            // The URL/title just committed are what restore rebuilds from.
+            // Saving on pause alone leaves every navigation since the last
+            // backgrounding out of the store, so a sudden death (crash,
+            // force-stop) would lose them. Serializing a few dozen small
+            // records per page load is negligible next to the page itself.
+            if (success) saveTabState()
             if (tab.id == activeId) {
                 progress.visibility = View.GONE
                 updateAddress()
@@ -977,8 +1042,7 @@ class MainActivity : AppCompatActivity() {
         }
         when (intent.action) {
             ACTION_PRIVATE_TAB -> {
-                if (tabs.isEmpty()) newTab(isPrivate = true, select = true)
-                else newTab(isPrivate = true, select = true)
+                newTab(isPrivate = true, select = true)
                 return
             }
             ACTION_ABOUT -> {
@@ -989,14 +1053,11 @@ class MainActivity : AppCompatActivity() {
         }
         val data = intent.data?.toString()
         if (tabs.isEmpty()) newTab(isPrivate = false, select = true)
+        // Every scheme lands in navigate(), which owns the URL-vs-search
+        // decision and the external-scheme handoff. (This used to be a
+        // three-way branch with navigate(data) in all three arms.)
         if (data != null) {
-            if (data.startsWith("http://") || data.startsWith("https://")) {
-                navigate(data)
-            } else if (data.startsWith("data:")) {
-                navigate(data)
-            } else {
-                navigate(data)
-            }
+            navigate(data)
         } else if (store.homepage != HOME_START && activeTab()?.isHome == true) {
             navigate(store.homepage)
         }
@@ -1037,11 +1098,15 @@ class MainActivity : AppCompatActivity() {
                 tab.url = saved.url
                 tab.title = saved.title
                 tab.lastActiveAt = saved.lastActiveAt
-                tab.session.loadUri(saved.url)
             }
         }
         val activeUrl = sessionStore.activeUrl()
         val selected = created.firstOrNull { it.url == activeUrl } ?: created.first()
+        // Only the tab in front loads now; the rest load on first selection
+        // (selectTab honors needsLoad). A cold start with many tabs used to
+        // fire every navigation at once before the first page could render.
+        created.forEach { if (it.id != selected.id) it.needsLoad = true }
+        selected.session.loadUri(selected.url)
         selectTab(selected.id)
     }
 
@@ -1070,6 +1135,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // History and Bookmarks screens edit their stores while this activity
+        // is stopped, so the suggestion cache is dropped on the way back in.
+        // Without this, suggestions would show entries the user just deleted.
+        suggestionHistory = null
+        suggestionBookmarks = null
         // Tapping or swiping the private-browsing reminder is only observable
         // here, on the way back into the app, so this is where the dismissal is
         // noticed. It also covers a launch that restored tabs without going
@@ -1098,18 +1168,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Memory pressure. The tab list is kept intact and only the least recently
-     * used background tabs lose their Gecko session, so the tray, history and
-     * "reopen closed" still work; selecting a suspended tab reloads it.
+     * Memory pressure. The tab list is kept intact and the active tab plus the
+     * most recently used background tabs keep their sessions; everything older
+     * loses its Gecko session, so the tray, history and recently-closed still
+     * work. Selecting a suspended tab reloads its URL (reviveTab). The `keep`
+     * parameter is the total number of live sessions, active tab included.
      */
     private fun suspendBackgroundTabs(keep: Int = 3) {
         if (!::geckoView.isInitialized) return
-        val candidates = tabs
-            .filter { it.id != activeId && !it.isHome && !it.isPrivate && !it.suspended && it.url.isNotBlank() }
-            .sortedBy { it.lastActiveAt }
-        val budget = (tabs.size - keep).coerceAtLeast(0)
-        if (candidates.size <= budget) return
-        candidates.take(candidates.size - budget).forEach { tab ->
+        val suspendable = tabs.filter {
+            it.id != activeId && !it.isHome && !it.isPrivate && !it.suspended && it.url.isNotBlank()
+        }.sortedByDescending { it.lastActiveAt }
+        // Active tab always survives; keep-1 most recent background tabs join
+        // it. The old arithmetic (budget = size - keep) closed almost nothing
+        // on a critical trim with a normal tab count, which is exactly when
+        // memory has to be freed.
+        val survivors = suspendable.take((keep - 1).coerceAtLeast(0)).map { it.id }.toSet()
+        suspendable.filter { it.id !in survivors }.forEach { tab ->
             runCatching { tab.session.close() }
             tab.suspended = true
         }
@@ -1403,6 +1478,19 @@ class MainActivity : AppCompatActivity() {
         privateIndicator.sync(tab.isPrivate)
         tab.lastActiveAt = System.currentTimeMillis()
         reviveTab(tab)
+        // A tab left in an error state -- crashed content process, failed load
+        // -- shows a dead page with no way back except this. Retrying on
+        // selection is a single load, not a loop: nothing here re-invokes
+        // selectTab, and a fresh failure simply re-marks the tab.
+        if (tab.needsLoad) {
+            tab.needsLoad = false
+            if (tab.url.isNotBlank()) tab.session.loadUri(tab.url)
+        } else if (tab.isError && !tab.isHome && tab.url.isNotBlank() &&
+            !tab.url.startsWith("data:")
+        ) {
+            tab.isError = false
+            tab.session.reload()
+        }
         for (candidate in tabs) {
             val selected = candidate.id == id
             if (!candidate.suspended && candidate.session.isOpen) {
@@ -1554,7 +1642,17 @@ class MainActivity : AppCompatActivity() {
         }
         val url = when {
             text.startsWith("http://") || text.startsWith("https://") -> text
-            text == "about:blank" || text.startsWith("about:") -> text
+            // A blank page is a shell state, not a navigation: routing it through
+            // the engine would produce an about:blank location commit that the
+            // delegate then has to treat as meaningless. goHome covers this by
+            // showing the overlay with no engine round-trip.
+            isBlank(text) -> {
+                showHomeState(tab)
+                hideSuggestions()
+                addressText.clearFocus()
+                return
+            }
+            text.startsWith("about:") -> text
             text.startsWith("//") -> "https:$text"
             text == "localhost" || text.startsWith("localhost:") ||
                 text.matches(Regex("\\d{1,3}(\\.\\d{1,3}){3}(:\\d+)?(/.*)?")) ||
@@ -1676,6 +1774,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun showContentProcessFailure(session: GeckoSession, message: Int) {
         val tab = tabFor(session) ?: return
+        // Mark it even when only a Toast is shown (background tab): without the
+        // flag the tab keeps a dead session with no recovery path, and
+        // selecting it later would show a blank page. selectTab retries
+        // error-flagged tabs, which is what recovers them.
+        tab.isError = true
         if (tab.id != activeId || isFinishing || isDestroyed) {
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             return
@@ -2194,23 +2297,35 @@ class MainActivity : AppCompatActivity() {
      */
     private fun pageActions(): List<MenuSheet.PageAction> {
         val tab = activeTab() ?: return emptyList()
-        // Exactly four, always four, always these four. The grid is four columns
-        // and always visible, so a set that grew or shrank would leave a ragged
-        // gap or an empty row. The Home tile is here because "go back to the
-        // start page" is the one navigation a reader reaches for from any page.
-        return listOf(
-            MenuSheet.PageAction(
-                getString(if (tab.isLoading) R.string.stop else R.string.reload),
-                if (tab.isLoading) R.drawable.ic_stop else R.drawable.ic_reload,
-            ) {
-                if (tab.isLoading) tab.session.stop()
-                else if (tab.isError) tab.session.loadUri(tab.url)
-                else tab.session.reload()
-            },
-            MenuSheet.PageAction(getString(R.string.homepage), R.drawable.ic_home) { goHome() },
-            MenuSheet.PageAction(getString(R.string.back), R.drawable.ic_back) { tab.session.goBack() },
-            MenuSheet.PageAction(getString(R.string.share), R.drawable.ic_share) { shareCurrent() },
-        )
+        // Four fixed tiles, plus Forward only when the engine says there is
+        // somewhere to go. The grid takes the tile count as its column count,
+        // so both shapes are exactly one full row -- never a ragged half-row.
+        // Forward uses the engine's own forward stack (canGoForward from
+        // onCanGoForward); there is no second history kept beside it.
+        val reload = MenuSheet.PageAction(
+            getString(if (tab.isLoading) R.string.stop else R.string.reload),
+            if (tab.isLoading) R.drawable.ic_stop else R.drawable.ic_reload,
+        ) {
+            if (tab.isLoading) tab.session.stop()
+            else if (tab.isError) tab.session.loadUri(tab.url)
+            else tab.session.reload()
+        }
+        val home = MenuSheet.PageAction(getString(R.string.homepage), R.drawable.ic_home) { goHome() }
+        val back = MenuSheet.PageAction(getString(R.string.back), R.drawable.ic_back) { tab.session.goBack() }
+        val share = MenuSheet.PageAction(getString(R.string.share), R.drawable.ic_share) { shareCurrent() }
+        return if (tab.canGoForward) {
+            listOf(
+                reload,
+                home,
+                back,
+                MenuSheet.PageAction(getString(R.string.forward), R.drawable.ic_forward) {
+                    tab.session.goForward()
+                },
+                share,
+            )
+        } else {
+            listOf(reload, home, back, share)
+        }
     }
 
     private fun showFindInPage(tab: Tab) {
@@ -2316,6 +2431,11 @@ class MainActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setMessage(getString(R.string.quit_confirm))
             .setPositiveButton(getString(R.string.quit)) { _, _ ->
+                // Quitting is the only destroy path that sanitizes. A Back-press
+                // exit, a recents dismiss or a configuration recreation all run
+                // through onDestroy too, and none of them is the user asking
+                // for their data to be wiped.
+                quitting = true
                 sanitize(keepPage = true)
                 finishAffinity()
             }
@@ -2334,7 +2454,13 @@ class MainActivity : AppCompatActivity() {
         // would claim private browsing is on when the app is gone.
         if (::privateIndicator.isInitialized) privateIndicator.dismiss()
         if (::mediaController.isInitialized) mediaController.release()
-        if (store.sanitizeOnShutdown) {
+        // Sanitizing here is gated on an explicit Quit, not on destruction
+        // itself. Before the gate, leaving with Back (or a theme change, which
+        // also recreates) wiped tabs, history, cookies and site data on a
+        // fresh install, because the desktop-mirrored defaults sanitize
+        // history, cookies, site data and cache. Quitting stays the deliberate
+        // path; everything else keeps state for the next launch.
+        if (quitting && store.sanitizeOnShutdown) {
             // Category by category, because "delete on quit" is a set of
             // separate promises and the user is allowed to keep some of them.
             if (store.sanitizeHistory) {

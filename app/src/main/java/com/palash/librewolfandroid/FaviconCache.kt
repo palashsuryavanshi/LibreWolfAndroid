@@ -30,7 +30,7 @@ object FaviconCache {
         if (!url.startsWith("https://") && !url.startsWith("http://")) return
         imageMisses.add(url)
         executor.execute {
-            val decoded = fetch(url)
+            val decoded = fetch(url, MAX_IMAGE_PX)
             if (decoded != null) {
                 if (images.size >= 20) images.clear()
                 images[url] = decoded
@@ -43,7 +43,7 @@ object FaviconCache {
         if (key.isBlank() || cache.containsKey(key) || misses.contains(key)) return
         misses.add(key)
         executor.execute {
-            val decoded = fetch("$key/favicon.ico")
+            val decoded = fetch("$key/favicon.ico", MAX_FAVICON_PX)
             if (decoded != null) {
                 if (cache.size >= 100) cache.clear()
                 cache[key] = decoded
@@ -52,7 +52,19 @@ object FaviconCache {
         }
     }
 
-    private fun fetch(url: String): Bitmap? = runCatching {
+    /**
+     * Network fetch with two ceilings. The byte cap stops a hostile server
+     * from filling memory before decode even starts; the dimension cap stops
+     * a valid-but-enormous image from becoming a bitmap the device cannot
+     * hold. Tray rows render at 36dp (144px at most), so 192px keeps full
+     * quality with headroom; manifest icons become launcher shortcut icons,
+     * which want more.
+     */
+    private const val MAX_FAVICON_PX = 192
+    private const val MAX_IMAGE_PX = 512
+    private const val MAX_BYTES = 4 * 1024 * 1024
+
+    private fun fetch(url: String, maxPx: Int): Bitmap? = runCatching {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 4_000
             readTimeout = 4_000
@@ -60,15 +72,42 @@ object FaviconCache {
             setRequestProperty("Accept", "image/*")
         }
         try {
-            if (connection.responseCode in 200..299) {
-                connection.inputStream.use { BitmapFactory.decodeStream(it) }
-            } else {
-                null
-            }
+            if (connection.responseCode !in 200..299) return@runCatching null
+            val bytes = connection.inputStream.use { readCapped(it, MAX_BYTES) }
+                ?: return@runCatching null
+            decodeBounded(bytes, maxPx)
         } finally {
             connection.disconnect()
         }
     }.getOrNull()
+
+    private fun readCapped(stream: java.io.InputStream, cap: Int): ByteArray? {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(32 * 1024)
+        var total = 0
+        while (true) {
+            val read = stream.read(buf)
+            if (read == -1) break
+            total += read
+            if (total > cap) return null
+            out.write(buf, 0, read)
+        }
+        return out.toByteArray()
+    }
+
+    private fun decodeBounded(bytes: ByteArray, maxPx: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().also { it.inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / sample > maxPx || bounds.outHeight / sample > maxPx) {
+            sample *= 2
+        }
+        return BitmapFactory.decodeByteArray(
+            bytes, 0, bytes.size,
+            BitmapFactory.Options().also { it.inSampleSize = sample },
+        )
+    }
 
     /**
      * Binds a site's own icon to a list row. The letter badge is shown until the

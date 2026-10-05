@@ -324,8 +324,10 @@
     </LinearLayout>
 
     <!-- Page actions, at the foot of the sheet, below Quit. They act on the page
-         in front rather than moving around the app. Four fixed tiles, so the
-         footer is always one row rather than a ragged half-row. -->
+         in front rather than moving around the app. Four tiles, five when the
+         engine reports somewhere to go forward to; the grid takes the tile
+         count as its column count, so the footer is always one full row
+         rather than a ragged half-row. -->
     <GridLayout
         android:id="@+id/row_page_actions"
         android:layout_width="match_parent"

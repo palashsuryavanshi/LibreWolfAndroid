@@ -38,6 +38,13 @@ class TabsSheet : BottomSheetDialogFragment() {
 
     private var adapter: TabsAdapter? = null
     private var groupedAdapter: GroupedTabsAdapter? = null
+    // paint() used to re-set the LayoutManager and the adapter on every call,
+    // and refresh() is called on every progress tick. Re-setting the layout
+    // manager resets the scroll position, so the tray visibly jumped whenever
+    // a page loaded underneath it. Structure is now only rebuilt when the mode
+    // or column count actually changes; data updates go through DiffUtil.
+    private var paintedMode = -1
+    private var paintedColumns = -1
     private var trackersView: TextView? = null
     private var countView: TextView? = null
     private var emptyView: TextView? = null
@@ -135,16 +142,25 @@ class TabsSheet : BottomSheetDialogFragment() {
     private fun paint() {
         val list = view?.findViewById<RecyclerView>(R.id.tabs_list) ?: return
         val shown = visible()
+        val structural = mode != paintedMode || columns != paintedColumns
+        paintedMode = mode
+        paintedColumns = columns
         if (mode == MODE_GROUPS) {
-            list.layoutManager = LinearLayoutManager(requireContext())
-            list.adapter = groupedAdapter?.also { it.update(shown) }
-        } else {
-            list.layoutManager = if (columns == 1) {
-                LinearLayoutManager(requireContext())
-            } else {
-                GridLayoutManager(requireContext(), 2)
+            if (structural || list.adapter !== groupedAdapter) {
+                list.layoutManager = LinearLayoutManager(requireContext())
+                list.adapter = groupedAdapter
             }
-            list.adapter = adapter?.also { it.update(shown) }
+            groupedAdapter?.update(shown)
+        } else {
+            if (structural || list.adapter !== adapter) {
+                list.layoutManager = if (columns == 1) {
+                    LinearLayoutManager(requireContext())
+                } else {
+                    GridLayoutManager(requireContext(), 2)
+                }
+                list.adapter = adapter
+            }
+            adapter?.update(shown)
         }
         trackersView?.text = trackersText
         countView?.text = shown.size.toString()
@@ -166,12 +182,14 @@ class TabsSheet : BottomSheetDialogFragment() {
         this.tabs = tabs
         this.inactiveTabs = inactiveTabs
         this.trackersText = trackersText
-        if (isAdded) {
-            view?.findViewById<TextView>(R.id.mode_inactive)?.visibility =
-                if (inactiveTabs.isEmpty()) View.GONE else View.VISIBLE
-            paint()
-        } else {
-            adapter?.update(visible())
-        }
+        // Refresh arrives on every progress tick, title change and location
+        // change. When the sheet is not on screen there is nothing to paint:
+        // the data is cached above and painted on view creation. Painting a
+        // hidden sheet was pure waste, and updating a detached adapter risked
+        // rebinding rows nobody can see.
+        if (dialog?.isShowing != true) return
+        view?.findViewById<TextView>(R.id.mode_inactive)?.visibility =
+            if (inactiveTabs.isEmpty()) View.GONE else View.VISIBLE
+        paint()
     }
 }

@@ -103,9 +103,10 @@ class MenuSheet : BottomSheetDialogFragment() {
      * Builds the page-action tiles into the grid above the navigation rows.
      *
      * Built in code rather than declared in the layout because the set is
-     * conditional: forward only when there is somewhere to go, find-in-page only
-     * with a page loaded, and so on. Fixed tiles would have to be greyed out for
-     * actions that cannot apply, which is worse than not showing them.
+     * conditional: forward only when there is somewhere to go. The grid takes
+     * the tile count as its column count, so four tiles and five tiles are
+     * each exactly one full row -- never a ragged half-row, and never greyed
+     * out tiles for actions that cannot apply.
      *
      * The tile is assembled to match the navigation tiles exactly -- same
      * background, 12dp padding, 24dp icon, 6dp gap, 13sp label -- so the two rows
@@ -113,11 +114,12 @@ class MenuSheet : BottomSheetDialogFragment() {
      */
     private fun renderPageActions(view: View) {
         val grid = view.findViewById<GridLayout>(R.id.row_page_actions)
-        // No hiding. The row is a fixed footer of four tiles; an empty or absent
-        // footer would leave the sheet ending on whatever row happened to be
-        // last, which moved around with the page.
+        // No hiding. The row is a fixed footer; an empty or absent footer would
+        // leave the sheet ending on whatever row happened to be last, which
+        // moved around with the page.
         val ctx = context ?: return
         grid.removeAllViews()
+        grid.columnCount = pageActions.size.coerceAtLeast(1)
         val density = ctx.resources.displayMetrics.density
         val pad = (12 * density).toInt()
         val iconSize = (24 * density).toInt()
