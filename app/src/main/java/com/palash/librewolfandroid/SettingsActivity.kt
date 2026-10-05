@@ -56,6 +56,25 @@ class SettingsActivity : AppCompatActivity() {
             if (screenId == SettingsScreens.PRIVACY_PERMISSIONS) render()
         }
 
+    // Registered here, not lazily in a click handler: registerForActivityResult
+    // must run before the activity is STARTED, and a dialog button fires while
+    // it is RESUMED.
+    private val folderPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            folderPickerCallback?.invoke(result.data)
+            folderPickerCallback = null
+        }
+
+    private var folderPickerCallback: ((android.content.Intent?) -> Unit)? = null
+
+    fun launchFolderPicker(
+        intent: Intent,
+        onResult: (android.content.Intent?) -> Unit,
+    ) {
+        folderPickerCallback = onResult
+        runCatching { folderPickerLauncher.launch(intent) }
+    }
+
     /**
      * Asks Android for the notification permission on the user's behalf, from a
      * place the user chose rather than as a side effect of a site request.

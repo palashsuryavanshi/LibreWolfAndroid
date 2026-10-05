@@ -16,6 +16,9 @@ data class DownloadTask(
     var name: String,
     val mime: String,
     val folder: String,
+    // SAF tree URI when the user picked a folder with the system picker. Takes
+    // precedence over `folder`, which stays as the display name.
+    val folderUri: String = "",
     val headers: Map<String, String>,
     val createdAt: Long,
     var state: DownloadState = DownloadState.QUEUED,
@@ -43,6 +46,7 @@ data class DownloadTask(
         put("name", name)
         put("mime", mime)
         put("folder", folder)
+        put("folderUri", folderUri)
         put("headers", JSONObject(headers as Map<*, *>))
         put("createdAt", createdAt)
         put("state", state.name)
@@ -68,6 +72,7 @@ data class DownloadTask(
                 name = o.optString("name"),
                 mime = o.optString("mime"),
                 folder = o.optString("folder"),
+                folderUri = o.optString("folderUri"),
                 headers = headers,
                 createdAt = o.optLong("createdAt"),
                 state = runCatching { DownloadState.valueOf(o.optString("state")) }

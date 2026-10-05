@@ -100,6 +100,12 @@ class DownloadsActivity : AppCompatActivity() {
 
     private fun human(bytes: Long): String = Format.bytes(this, bytes)
 
+    /** Folder a completed download lives in, when it is not the default. */
+    private fun folderLabel(t: DownloadTask): String {
+        if (t.folder.isBlank()) return ""
+        return "  •  ${t.folder}"
+    }
+
     private fun reload() {
         val all = store.all()
         adapter.update(
@@ -114,7 +120,7 @@ class DownloadsActivity : AppCompatActivity() {
                     else -> true
                 }
                 okFilter && (query.isEmpty() || t.name.contains(query, true))
-            }.map { it to statusLabel(it) },
+            }.map { it to statusLabel(it) + folderLabel(it) },
         )
         if (all.isEmpty()) {
             Toast.makeText(this, getString(R.string.no_downloads), Toast.LENGTH_SHORT).show()

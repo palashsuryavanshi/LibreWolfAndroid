@@ -1994,6 +1994,7 @@ class MainActivity : AppCompatActivity() {
                     name = name,
                     mime = mimeType.orEmpty(),
                     folder = folder,
+                    folderUri = store.downloadFolderUri,
                     headers = taskHeaders,
                     body = body,
                     totalBytes = contentLength,
@@ -2004,6 +2005,7 @@ class MainActivity : AppCompatActivity() {
                     name = name,
                     mime = mimeType.orEmpty(),
                     folder = folder,
+                    folderUri = store.downloadFolderUri,
                     headers = taskHeaders,
                     userAgent = userAgent.orEmpty(),
                 )

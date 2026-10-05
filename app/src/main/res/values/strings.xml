@@ -153,9 +153,11 @@
     <string name="settings_dl">Download Settings</string>
     <string name="settings_download_location">Download folder</string>
     <string name="downloads_folder_default">Downloads</string>
-    <string name="downloads_folder_named">Downloads/%1$s</string>
-    <string name="download_folder_hint">Optional folder name</string>
-    <string name="download_folder_message">New files are saved below the public Downloads directory. Leave blank for its root.</string>
+    <string name="download_folder_choose">Choose download folder</string>
+    <string name="download_folder_pick">Choose folder…</string>
+    <string name="download_folder_reset">Reset to Downloads</string>
+    <string name="download_folder_current">Current folder</string>
+    <string name="download_folder_message">New files are saved in the folder you choose. "Reset to Downloads" puts them back in the default Downloads folder.</string>
     <string name="settings_remote">Remote debugging via USB</string>
     <string name="diagnostics">Diagnostics</string>
     <string name="settings_diagnostics">Diagnostics</string>

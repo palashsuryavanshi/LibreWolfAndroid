@@ -57,6 +57,20 @@ class SettingsContext(val activity: AppCompatActivity) {
         runCatching { activity.startActivity(intent) }
     }
 
+    /**
+     * Launches an activity for a result. The actual launcher lives on the
+     * activity and is registered in its constructor, because
+     * `registerForActivityResult` must run before the activity is STARTED --
+     * registering lazily from a dialog button (RESUMED) throws.
+     */
+    fun activityForResult(
+        intent: Intent,
+        onResult: (android.content.Intent?) -> Unit,
+    ) {
+        (activity as? SettingsActivity)?.launchFolderPicker(intent, onResult)
+            ?: runCatching { activity.startActivity(intent) }
+    }
+
     fun refresh() {
         // Re-creating the activity from inside a click handler tears the view
         // tree down while that same tap is still being dispatched. The row and

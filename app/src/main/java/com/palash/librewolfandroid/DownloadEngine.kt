@@ -78,6 +78,7 @@ object DownloadEngine {
         name: String,
         mime: String,
         folder: String,
+        folderUri: String = "",
         headers: Map<String, String> = emptyMap(),
         userAgent: String = "",
     ): DownloadTask {
@@ -87,6 +88,7 @@ object DownloadEngine {
             name = name,
             mime = mime,
             folder = folder,
+            folderUri = folderUri,
             headers = headers,
             createdAt = System.currentTimeMillis(),
             userAgent = userAgent,
@@ -109,6 +111,7 @@ object DownloadEngine {
         name: String,
         mime: String,
         folder: String,
+        folderUri: String = "",
         headers: Map<String, String> = emptyMap(),
         body: InputStream?,
         totalBytes: Long = -1L,
@@ -119,6 +122,7 @@ object DownloadEngine {
             name = name,
             mime = mime,
             folder = folder,
+            folderUri = folderUri,
             headers = headers,
             createdAt = System.currentTimeMillis(),
             totalBytes = totalBytes,
@@ -446,6 +450,19 @@ object DownloadEngine {
             }
             val f = File(existing)
             if (f.exists()) return Target(null, f, true)
+        }
+        // A folder picked with the system Files picker wins: the tree URI is
+        // where the file goes, and `folder` is only its display name.
+        if (task.folderUri.isNotBlank()) {
+            val tree = androidx.documentfile.provider.DocumentFile.fromTreeUri(
+                app, Uri.parse(task.folderUri),
+            ) ?: return null
+            val file = tree.createFile(
+                task.mime.ifBlank { "application/octet-stream" },
+                task.name,
+            ) ?: return null
+            store.update(id) { it.localRef = file.uri.toString() }
+            return Target(file.uri, null, false)
         }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {

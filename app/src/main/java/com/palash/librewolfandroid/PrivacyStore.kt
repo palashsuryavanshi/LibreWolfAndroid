@@ -263,6 +263,11 @@ class PrivacyStore(context: Context) {
             prefs.edit { putString(K_DOWNLOAD_FOLDER, clean) }
         }
 
+    /** SAF tree URI for [downloadFolder], set by the system Files picker. */
+    var downloadFolderUri: String
+        get() = prefs.getString(K_DOWNLOAD_FOLDER_URI, "").orEmpty()
+        set(value) = prefs.edit { putString(K_DOWNLOAD_FOLDER_URI, value) }
+
     /** 0 = follow system, 1 = light, 2 = dark. */
     var themeMode: Int
         get() = prefs.getInt(K_THEME, 2)
@@ -387,6 +392,7 @@ class PrivacyStore(context: Context) {
         private const val K_DESKTOP = "desktop_mode"
         private const val K_JS = "javascript_enabled"
         private const val K_DOWNLOAD_FOLDER = "download_folder"
+    private const val K_DOWNLOAD_FOLDER_URI = "download_folder_uri"
         private const val K_THEME = "theme_mode"
         private const val K_HOME = "homepage"
         private const val K_SUG = "search_suggestions"

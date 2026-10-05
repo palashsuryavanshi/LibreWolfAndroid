@@ -424,17 +424,14 @@ object SettingsScreens {
     private fun downloads() = screen(DOWNLOADS, "Downloads", "location", "folder", "notification") {
         sections {
             section {
-                text(
+                action(
                     string(R.string.settings_download_location),
-                    { if (store.downloadFolder.isBlank()) string(R.string.downloads_folder_default) else store.downloadFolder },
-                    { _, value -> store.downloadFolder = value },
-                    message = string(R.string.download_folder_message),
+                    { downloadFolderDialog(it) },
+                    if (store.downloadFolder.isBlank()) string(R.string.downloads_folder_default) else store.downloadFolder,
+                    null,
                 )
                 toggle(string(R.string.settings_download_notifications), { store.downloadNotifications }, { _, v -> store.downloadNotifications = v }, onChanged = { refresh() })
                 toggle(string(R.string.settings_dangerous_downloads), { store.warnRiskyDownloads }, { _, v -> store.warnRiskyDownloads = v }, string(R.string.settings_dangerous_downloads_sub)) 
-            }
-            section {
-                action(string(R.string.clear_downloads), { clearOne(it, SettingsClear.DOWNLOADS) }, null, null) 
             }
         }
     }
@@ -813,6 +810,66 @@ object SettingsScreens {
             }
             .setNegativeButton(R.string.cancel, null)
             .show()
+    }
+
+    /**
+     * Download-folder picker. Opens the system Files picker
+     * (ACTION_OPEN_DOCUMENT_TREE) so the user chooses a real folder; the
+     * returned tree URI is persisted with a read+write grant, so later
+     * downloads write straight into it without asking again. The folder name
+     * is derived from the URI for display. "Reset to Downloads" clears both,
+     * which is the default.
+     */
+    fun downloadFolderDialog(ctx: SettingsContext) {
+        val current = ctx.store.downloadFolder
+        val message = if (current.isBlank()) {
+            ctx.string(R.string.download_folder_message)
+        } else {
+            "${ctx.string(R.string.download_folder_current)}: $current"
+        }
+        AlertDialog.Builder(ctx.activity)
+            .setTitle(R.string.download_folder_choose)
+            .setMessage(message)
+            .setPositiveButton(R.string.download_folder_pick) { _, _ ->
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                    addFlags(
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+                    )
+                }
+                ctx.activityForResult(intent) { data ->
+                    val uri = data?.data ?: return@activityForResult
+                    runCatching {
+                        ctx.activity.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                        )
+                    }
+                    ctx.store.downloadFolder = folderNameFromTreeUri(uri)
+                    ctx.store.downloadFolderUri = uri.toString()
+                    ctx.refresh()
+                }
+            }
+            .setNeutralButton(R.string.download_folder_reset) { _, _ ->
+                ctx.store.downloadFolder = ""
+                ctx.store.downloadFolderUri = ""
+                ctx.refresh()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /**
+     * Display name for a SAF tree URI. The doc id is the most stable part
+     * ("primary:Documents" -> "Documents", "primary:Pictures" -> "Pictures"),
+     * with the path as a fallback for subfolders.
+     */
+    private fun folderNameFromTreeUri(uri: android.net.Uri): String {
+        val docId = uri.lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/')
+            ?: return uri.lastPathSegment ?: ""
+        return docId.ifBlank { uri.lastPathSegment ?: "" }
     }
 
     fun autofillInfo(ctx: SettingsContext) {
