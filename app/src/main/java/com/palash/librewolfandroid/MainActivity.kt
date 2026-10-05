@@ -206,6 +206,12 @@ class MainActivity : AppCompatActivity() {
     // True only between the Quit confirmation and process end. See askQuit
     // and onDestroy: destruction alone must not wipe user data.
     private var quitting = false
+    // Held as a field so a recreated activity can re-point the runtime at the
+    // new instance; the runtime outlives any single activity.
+    private val serviceWorkerDelegate = object : GeckoRuntime.ServiceWorkerDelegate {
+        override fun onOpenWindow(url: String): GeckoResult<GeckoSession> =
+            GeckoResult.fromValue(createUnopenedPopup(isPrivate = false))
+    }
 
     /** Origin the browser was launched for from a pinned web-app shortcut. */
     private var webAppOrigin: String? = null
@@ -917,8 +923,13 @@ class MainActivity : AppCompatActivity() {
         if (runtime == null) {
             runtime = createRuntime()
         } else {
+            // The runtime outlives the activity, so every delegate that captures
+            // it has to be re-pointed at the new instance. The service-worker
+            // delegate was missing here: it kept calling createUnopenedPopup on
+            // the destroyed activity, whose stores were stale.
             runtime?.setWebNotificationDelegate(BrowserNotificationDelegate(this))
             runtime?.setAutocompleteStorageDelegate(BrowserAutocompleteDelegate(loginStore))
+            runtime?.setServiceWorkerDelegate(serviceWorkerDelegate)
         }
 
         geckoView = findViewById(R.id.geckoview)
@@ -1268,10 +1279,7 @@ class MainActivity : AppCompatActivity() {
         rt.settings.cookieBehaviorOptInPartitioning = true
         rt.setAutocompleteStorageDelegate(BrowserAutocompleteDelegate(loginStore))
         rt.setWebNotificationDelegate(BrowserNotificationDelegate(this))
-        rt.setServiceWorkerDelegate(object : GeckoRuntime.ServiceWorkerDelegate {
-            override fun onOpenWindow(url: String): GeckoResult<GeckoSession> =
-                GeckoResult.fromValue(createUnopenedPopup(isPrivate = false))
-        })
+        rt.setServiceWorkerDelegate(serviceWorkerDelegate)
         applyEnginePreferences()
         applyPrivacyOverrides(rt)
         registerDownloadRefresher()
