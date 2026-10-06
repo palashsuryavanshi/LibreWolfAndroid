@@ -8,10 +8,12 @@ import android.app.PictureInPictureParams
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.graphics.Rect
+import android.view.MotionEvent
+import android.view.TouchDelegate
 import android.view.View
 import android.webkit.URLUtil
 import android.util.TypedValue
-import android.view.MotionEvent
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -1046,7 +1048,12 @@ class MainActivity : AppCompatActivity() {
             installSuggestionCap(this)
         }
         tabsCount.setOnClickListener { showTabsSheet() }
-        findViewById<View>(R.id.btn_menu).setOnClickListener { showMenuSheet() }
+        val menuButton = findViewById<View>(R.id.btn_menu)
+        menuButton.setOnClickListener { showMenuSheet() }
+        // Both bottom-bar controls keep the size they have always been drawn at.
+        // The touch area is widened instead, so nothing about the bar's appearance
+        // changes while both stay reachable.
+        enlargeTouchTargets(tabsCount, menuButton)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -1813,6 +1820,66 @@ class MainActivity : AppCompatActivity() {
             geckoView.visibility = View.VISIBLE
         }
         tab.session.loadUri(url)
+    }
+
+    /**
+     * Widens the touch area of the two bottom-bar controls without redrawing them.
+     *
+     * The tab-count badge is 38x32dp and the menu button 44dp, both under the 48dp
+     * Android asks for, so both were harder to hit than they looked. A
+     * [TouchDelegate] hands taps in the surrounding empty space to a control while
+     * the control keeps the size and appearance the design gave it.
+     *
+     * All the controls are registered with ONE delegate on the parent, because
+     * `View.setTouchDelegate` holds a single delegate: calling it per control
+     * silently replaces the previous one, which left the tab badge with no
+     * enlarged area at all while appearing to work.
+     */
+    private fun enlargeTouchTargets(vararg views: View) {
+        val parent = views.firstOrNull()?.parent as? View ?: return
+        val size = resources.getDimensionPixelSize(R.dimen.touch_target)
+        parent.post {
+            val targets = views.mapNotNull { view ->
+                if (view.parent !== parent) return@mapNotNull null
+                val rect = Rect()
+                view.getHitRect(rect)
+                val cx = rect.exactCenterX().toInt()
+                val cy = rect.exactCenterY().toInt()
+                val half = size / 2
+                rect.set(cx - half, cy - half, cx + half, cy + half)
+                rect to view
+            }
+            if (targets.isEmpty()) return@post
+            parent.touchDelegate = ExpandedTouchDelegate(targets)
+        }
+    }
+
+    /**
+     * Routes a touch to whichever of several controls owns the expanded rect.
+     *
+     * [TouchDelegate] is built for one target, and the platform exposes only one
+     * per view, so the hit test and the dispatch are done here instead. The event
+     * is copied with coordinates moved into the target's own space, because that
+     * is what the target's click handling expects.
+     */
+    private class ExpandedTouchDelegate(
+        targets: List<Pair<Rect, View>>,
+    ) : TouchDelegate(targets.first().first, targets.first().second) {
+
+        private val targets = targets
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            for ((rect, view) in targets) {
+                if (!rect.contains(event.x.toInt(), event.y.toInt())) continue
+                if (!view.isEnabled || !view.isShown) return false
+                val moved = MotionEvent.obtain(event)
+                moved.setLocation(event.x - view.left, event.y - view.top)
+                val handled = view.dispatchTouchEvent(moved)
+                moved.recycle()
+                return handled
+            }
+            return false
+        }
     }
 
     private fun copyText(text: String, label: String) {

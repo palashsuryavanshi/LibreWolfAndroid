@@ -193,8 +193,12 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- The count is the whole affordance, so it has to read as a button and
-             be reachable by touch. 38x32dp was neither. -->
+        <!-- The badge keeps its original 38x32dp so it looks the way it always
+             has. Its touch target is enlarged to 48dp by a TouchDelegate set in
+             code, which is the point of a touch target: it is about what the
+             finger can hit, not about how big the control is drawn. Growing the
+             view instead would have changed a control the design had settled on
+             in order to serve a rule, which is backwards. -->
         <TextView
             android:id="@+id/tabs_count"
             android:layout_width="wrap_content"
@@ -204,16 +208,19 @@
             android:clickable="true"
             android:focusable="true"
             android:gravity="center"
-            android:minWidth="@dimen/touch_target"
-            android:minHeight="@dimen/touch_target"
+            android:minWidth="38dp"
+            android:minHeight="32dp"
+            android:text="1"
             android:textColor="@color/librewolf_text"
             android:textSize="14sp"
             android:textStyle="bold" />
 
+        <!-- 44dp as it always was, with the 48dp touch area supplied by the same
+             TouchDelegate as the tab badge. -->
         <ImageButton
             android:id="@+id/btn_menu"
-            android:layout_width="@dimen/touch_target"
-            android:layout_height="@dimen/touch_target"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:layout_marginStart="4dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/menu"
