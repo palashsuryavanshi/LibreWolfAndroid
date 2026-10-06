@@ -138,11 +138,18 @@ class SitePermissionsActivity : AppCompatActivity() {
     private fun renderHub() {
         SitePermissionIndex.capabilities().forEach { capability ->
             val count = entries.count { it.permission == capability }
+            val label = SitePermissionIndex.label(this@SitePermissionsActivity, capability)
             val row = TextView(this).apply {
-                text = SitePermissionIndex.label(this@SitePermissionsActivity, capability)
+                text = label
                 textSize = 18f
                 setTextColor(getColor(R.color.librewolf_text))
                 setPadding(0, 20, 0, 6)
+                // The row opens the per-capability list, and holds a long-press
+                // shortcut for clearing every site's decision. Say both, or a
+                // screen-reader user meets a tappable row with no way to reach
+                // the other action at all.
+                contentDescription = getString(R.string.a11y_clear_capability, label)
+                isFocusable = true
             }
             list.addView(row)
             list.addView(
@@ -156,6 +163,17 @@ class SitePermissionsActivity : AppCompatActivity() {
                     setTextColor(getColor(R.color.librewolf_grey))
                 },
             )
+            row.setOnClickListener {
+                startActivity(
+                    Intent(this@SitePermissionsActivity, SitePermissionsActivity::class.java)
+                        .putExtra(EXTRA_PERMISSION, capability),
+                )
+            }
+            // Clearing one capability for every site was reachable only by long-pressing the
+            // row. A long press is not a gesture a screen reader or a switch-access
+            // user can perform, so that action simply did not exist for them. The
+            // long press is kept as the shortcut, and the row now also announces
+            // that it has one, so the capability is not a dead end.
             row.setOnClickListener {
                 startActivity(
                     Intent(this@SitePermissionsActivity, SitePermissionsActivity::class.java)

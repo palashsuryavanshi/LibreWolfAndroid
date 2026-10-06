@@ -1,4 +1,4 @@
-package com.palash.librewolfandroid
+﻿package com.palash.librewolfandroid
 
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -48,6 +48,7 @@ class TabsSheet : BottomSheetDialogFragment() {
     private var trackersView: TextView? = null
     private var countView: TextView? = null
     private var emptyView: TextView? = null
+    private var closeAllView: View? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -108,8 +109,9 @@ class TabsSheet : BottomSheetDialogFragment() {
             visibility = if (showGroups) View.VISIBLE else View.GONE
             setOnClickListener { switchMode(MODE_GROUPS) }
         }
-        view.findViewById<View>(R.id.tray_close_all).setOnClickListener {
-            onCloseAll(mode == MODE_PRIVATE)
+        view.findViewById<View>(R.id.tray_close_all).apply {
+            closeAllView = this
+            setOnClickListener { onCloseAll(mode == MODE_PRIVATE) }
         }
         view.findViewById<View>(R.id.sheet_new_tab).setOnClickListener {
             onNewTab(mode == MODE_PRIVATE)
@@ -136,6 +138,10 @@ class TabsSheet : BottomSheetDialogFragment() {
         view?.findViewById<TextView>(id)?.apply {
             setBackgroundResource(if (active) R.drawable.bg_chip_on else R.drawable.bg_chip_off)
             setTextColor(ctx.getColor(if (active) R.color.librewolf_text else R.color.librewolf_grey))
+            // Colour alone said which mode the tray was in. isSelected is the
+            // state accessibility services announce, so this is what makes the
+            // active mode spoken rather than only drawn.
+            isSelected = active
         }
     }
 
@@ -165,6 +171,17 @@ class TabsSheet : BottomSheetDialogFragment() {
         trackersView?.text = trackersText
         countView?.text = shown.size.toString()
         emptyView?.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
+        // "Close all" with nothing to close did nothing at all, with no state to
+        // say so beforehand. Disabled and dimmed is the honest presentation: the
+        // control is real, and there is currently nothing for it to act on.
+        closeAllView?.apply {
+            isEnabled = shown.isNotEmpty()
+            alpha = if (shown.isEmpty()) 0.4f else 1f
+            contentDescription = view?.context?.getString(
+                R.string.a11y_close_all_tabs,
+                shown.size,
+            )
+        }
         emptyView?.text = getString(
             when (mode) {
                 MODE_PRIVATE -> R.string.no_private_tabs

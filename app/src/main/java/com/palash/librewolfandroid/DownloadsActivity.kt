@@ -1,4 +1,4 @@
-package com.palash.librewolfandroid
+﻿package com.palash.librewolfandroid
 
 import android.content.Context
 import android.content.Intent
@@ -41,10 +41,22 @@ class DownloadsActivity : AppCompatActivity() {
             onOpen = { openEntry(it) },
             onRemove = { removeEntry(it) },
             onShare = { shareEntry(it) },
-            onPause = { DownloadEngine.pause(it.id); reload() },
-            onResume = { DownloadEngine.resume(it.id); reload() },
-            onCancel = { DownloadEngine.cancel(it.id); reload() },
-            onRetry = { DownloadEngine.retry(it.id); reload() },
+            onPause = {
+                DownloadEngine.pause(it.id); reload()
+                confirm(R.string.download_pause_done)
+            },
+            onResume = {
+                DownloadEngine.resume(it.id); reload()
+                confirm(R.string.download_resume_done)
+            },
+            onCancel = {
+                DownloadEngine.cancel(it.id); reload()
+                confirm(R.string.download_cancel_done)
+            },
+            onRetry = {
+                DownloadEngine.retry(it.id); reload()
+                confirm(R.string.download_retry_done)
+            },
         )
         findViewById<RecyclerView>(R.id.downloads_list).apply {
             layoutManager = LinearLayoutManager(this@DownloadsActivity)
@@ -77,10 +89,22 @@ class DownloadsActivity : AppCompatActivity() {
 
     private fun paintChips() {
         val ids = intArrayOf(R.id.chip_all, R.id.chip_images, R.id.chip_docs, R.id.chip_other)
+        val labels = resources.getStringArray(R.array.download_filters)
         ids.forEachIndexed { i, id ->
             findViewById<TextView>(id).apply {
-                setBackgroundResource(if (i == filter) R.drawable.bg_chip_on else R.drawable.bg_chip_off)
-                setTextColor(getColor(if (i == filter) R.color.librewolf_text else R.color.librewolf_grey))
+                val active = i == filter
+                setBackgroundResource(if (active) R.drawable.bg_chip_on else R.drawable.bg_chip_off)
+                setTextColor(getColor(if (active) R.color.librewolf_text else R.color.librewolf_grey))
+                // The selected filter was marked by colour alone, which a screen
+                // reader never sees. View.isSelected is what accessibility
+                // services read as "checked", so tapping Images announced four
+                // identical filters with no way to tell which one was active.
+                isSelected = active
+                contentDescription = if (active) {
+                    getString(R.string.filter_selected, labels.getOrElse(i) { "" })
+                } else {
+                    labels.getOrElse(i) { "" }
+                }
             }
         }
     }
@@ -88,15 +112,15 @@ class DownloadsActivity : AppCompatActivity() {
     private fun statusLabel(t: DownloadTask): String = when (t.state) {
         DownloadState.QUEUED -> getString(R.string.download_queued)
         DownloadState.RUNNING -> if (t.totalBytes > 0) {
-            "${t.percent}% • ${human(t.bytesDownloaded)} / ${human(t.totalBytes)}"
+            "${t.percent}% â€¢ ${human(t.bytesDownloaded)} / ${human(t.totalBytes)}"
         } else {
             human(t.bytesDownloaded)
         }
         DownloadState.PAUSED ->
-            "${getString(R.string.download_paused)} • ${human(t.bytesDownloaded)}"
-        DownloadState.COMPLETED -> "${getString(R.string.download_complete)} • ${human(t.bytesDownloaded)}"
+            "${getString(R.string.download_paused)} â€¢ ${human(t.bytesDownloaded)}"
+        DownloadState.COMPLETED -> "${getString(R.string.download_complete)} â€¢ ${human(t.bytesDownloaded)}"
         DownloadState.FAILED ->
-            "${getString(R.string.download_failed)} • ${t.error.ifBlank { human(t.bytesDownloaded) }}"
+            "${getString(R.string.download_failed)} â€¢ ${t.error.ifBlank { human(t.bytesDownloaded) }}"
         DownloadState.CANCELED -> getString(R.string.cancel_download)
     }
 
@@ -105,7 +129,7 @@ class DownloadsActivity : AppCompatActivity() {
     /** Folder a completed download lives in, when it is not the default. */
     private fun folderLabel(t: DownloadTask): String {
         if (t.folder.isBlank()) return ""
-        return "  •  ${t.folder}"
+        return "  â€¢  ${t.folder}"
     }
 
     private fun reload() {
@@ -147,25 +171,20 @@ class DownloadsActivity : AppCompatActivity() {
             Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
             return
         }
-        try {
-            startActivity(Intent.createChooser(intent, getString(R.string.open_file)))
-        } catch (_: Exception) {
-            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
-        }
+        shareOrExplain(
+            Intent.createChooser(intent, getString(R.string.open_file)),
+            R.string.not_available,
+        )
     }
 
     private fun shareEntry(t: DownloadTask) {
         if (t.state != DownloadState.COMPLETED) return
-        try {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = t.mime.ifEmpty { "*/*" }
-                putExtra(Intent.EXTRA_STREAM, downloadUri(t))
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            startActivity(Intent.createChooser(intent, getString(R.string.share)))
-        } catch (_: Exception) {
-            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = t.mime.ifEmpty { "*/*" }
+            putExtra(Intent.EXTRA_STREAM, downloadUri(t))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        shareOrExplain(Intent.createChooser(intent, getString(R.string.share)), R.string.not_available)
     }
 
     private fun downloadUri(t: DownloadTask): android.net.Uri? {
@@ -246,7 +265,19 @@ class DownloadsActivity : AppCompatActivity() {
                     else -> R.drawable.ic_doc
                 },
             )
-            h.itemView.setOnClickListener { onOpen(e) }
+            // Tapping a row opens the file, which is only possible once it has finished.
+            // Before that the row looked tappable and did nothing at all, so the
+            // row itself is not clickable while the download is still running and
+            // says why; the per-row menu stays available for pause and retry.
+            val openable = e.state == DownloadState.COMPLETED
+            h.itemView.isClickable = openable
+            h.itemView.isFocusable = openable
+            if (openable) {
+                h.itemView.setOnClickListener { onOpen(e) }
+            } else {
+                h.itemView.setOnClickListener(null)
+            }
+            h.more.contentDescription = ctx.getString(R.string.a11y_download_actions, e.name)
             h.more.setOnClickListener { v ->
                 androidx.appcompat.widget.PopupMenu(v.context, v).apply {
                     when (e.state) {

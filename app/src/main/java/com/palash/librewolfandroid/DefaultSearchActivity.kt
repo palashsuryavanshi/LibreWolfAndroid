@@ -58,13 +58,11 @@ class DefaultSearchActivity : AppCompatActivity() {
         onSelect: () -> Unit,
     ): View {
         val v = layoutInflater.inflate(R.layout.item_engine_radio, normalSection, false)
-        v.findViewById<TextView>(R.id.engine_name).text = engine.name
-        // No engine logos/badges: just the radio and the name.
-        v.findViewById<TextView>(R.id.engine_badge).visibility = View.GONE
-        v.findViewById<RadioButton>(R.id.engine_radio).isChecked = selected
+        EngineRow.bind(v, engine, selected)
         val more = v.findViewById<ImageButton>(R.id.engine_more)
+        // The overflow only exists for an engine the user added themselves.
+        EngineRow.bindOverflow(v, engine, selected && store.customEngines.any { it.name == engine.name })
         if (selected && store.customEngines.any { it.name == engine.name }) {
-            more.visibility = View.VISIBLE
             more.setOnClickListener {
                 AlertDialog.Builder(this)
                     .setTitle(engine.name)

@@ -333,6 +333,7 @@ class ExtensionsActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(h: VH, position: Int) {
             val row = items[position]
+            val ctx = h.itemView.context
             h.name.text = row.addon.name
             h.sub.text = row.addon.summary
             h.sub.visibility = View.VISIBLE
@@ -340,14 +341,16 @@ class ExtensionsActivity : AppCompatActivity() {
                 // Already present. Tapping would reinstall the same add-on, so the
                 // row is inert and says why rather than inviting a no-op.
                 h.action.setImageResource(R.drawable.ic_shield)
-                h.action.contentDescription = row.addon.name
+                h.action.contentDescription =
+                    ctx.getString(R.string.installed_ext, row.addon.name)
                 h.action.setOnClickListener { }
                 h.itemView.setOnClickListener { }
                 h.itemView.alpha = 0.6f
                 h.itemView.isEnabled = false
             } else {
                 h.action.setImageResource(R.drawable.ic_add)
-                h.action.contentDescription = row.addon.name
+                h.action.contentDescription =
+                    ctx.getString(R.string.install_ext, row.addon.name)
                 // The whole row installs, not just the button: a 24dp target is
                 // below the comfortable minimum, and the card made this a
                 // comfortable target for free.

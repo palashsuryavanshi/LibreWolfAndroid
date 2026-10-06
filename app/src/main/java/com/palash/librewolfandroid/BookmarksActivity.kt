@@ -55,6 +55,7 @@ class BookmarksActivity : AppCompatActivity() {
             onDelete = { bm ->
                 store.remove(bm.url)
                 reload()
+                confirm(R.string.bookmark_deleted)
             },
             onMenu = { showBookmarkMenu(it) },
         )

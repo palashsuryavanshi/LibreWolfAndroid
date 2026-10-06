@@ -179,7 +179,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var geckoView: GeckoView
     private lateinit var browserControls: View
     private lateinit var homeOverlay: LinearLayout
-    private var trackersText: TextView? = null
     private lateinit var trayTrackersText: String
     private lateinit var progress: ProgressBar
     private lateinit var addressText: EditText
@@ -1706,8 +1705,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         // The start page no longer carries a tracker pill; the figure lives on the
-        // tab tray, which is where a tab in front is actually identified.
-        trackersText?.text = text
+        // tab tray, which is where a tab in front is actually identified. The
+        // field this used to write to was never given a View, so it was always
+        // null and the tracker count reached the user only through the tray.
         trayTrackersText = text
     }
 

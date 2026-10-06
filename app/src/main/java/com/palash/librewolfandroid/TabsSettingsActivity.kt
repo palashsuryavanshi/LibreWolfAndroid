@@ -54,9 +54,7 @@ class TabsSettingsActivity : AppCompatActivity() {
 
     private fun radio(label: String, selected: Boolean, onSelect: () -> Unit) {
         val v = layoutInflater.inflate(R.layout.item_engine_radio, list, false)
-        v.findViewById<TextView>(R.id.engine_name).text = label
-        v.findViewById<TextView>(R.id.engine_badge).visibility = View.GONE
-        v.findViewById<RadioButton>(R.id.engine_radio).isChecked = selected
+        EngineRow.bindLabel(v, label, selected)
         v.setOnClickListener { onSelect() }
         list.addView(v)
     }

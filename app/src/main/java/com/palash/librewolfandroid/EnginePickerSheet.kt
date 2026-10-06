@@ -27,9 +27,7 @@ class EnginePickerSheet : BottomSheetDialogFragment() {
         val current = store.engineFor(false)
         engines.forEach { engine ->
             val row = layoutInflater.inflate(R.layout.item_engine_radio, list, false)
-            row.findViewById<TextView>(R.id.engine_name).text = engine.name
-            row.findViewById<TextView>(R.id.engine_badge).visibility = View.GONE
-            row.findViewById<RadioButton>(R.id.engine_radio).isChecked = engine.name == current.name
+            EngineRow.bind(row, engine, engine.name == current.name)
             row.setOnClickListener {
                 onPick(engine)
                 dismiss()

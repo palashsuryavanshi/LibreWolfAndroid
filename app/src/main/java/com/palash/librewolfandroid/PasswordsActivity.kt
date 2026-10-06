@@ -109,6 +109,7 @@ class PasswordsActivity : AppCompatActivity() {
             .setNeutralButton(getString(R.string.delete)) { _, _ ->
                 store.remove(login.site, login.username)
                 reload()
+                confirm(R.string.login_deleted)
             }
             .show()
     }

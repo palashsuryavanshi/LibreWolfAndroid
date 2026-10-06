@@ -212,7 +212,7 @@ class SettingsActivity : AppCompatActivity() {
                 val view = layoutInflater.inflate(R.layout.item_setting, list, false)
                 view.findViewById<TextView>(R.id.set_title).text = hit.setting.title
                 val sub = view.findViewById<TextView>(R.id.set_sub)
-                val detail = hit.setting.subtitle ?: hit.setting.valueOrNull()
+                val detail = hit.setting.subtitle ?: hit.setting.valueOrNull(this)
                 if (detail.isNullOrEmpty()) sub.visibility = View.GONE else sub.text = detail
                 view.findViewById<android.widget.ImageView>(R.id.set_icon).visibility = View.GONE
                 view.findViewById<View>(R.id.set_switch).visibility = View.GONE
@@ -256,13 +256,16 @@ class SettingsActivity : AppCompatActivity() {
  * The value a component currently holds, for a search result.
  *
  * Captured when the screen was built, so a result reads "Cookies & site data:
- * Block third-party cookies" without the index needing a context of its own.
+ * Block third-party cookies". A toggle is the one case that cannot be answered
+ * from the setting alone: its value is the word On or Off, and those are string
+ * resources, so this needs a context to resolve them. Passing one is why it is
+ * an argument rather than something the caller reaches for.
  */
-private fun Setting.valueOrNull(): String? = when (this) {
+private fun Setting.valueOrNull(ctx: android.content.Context): String? = when (this) {
     is InfoSetting -> value
     is ChoiceSetting -> current
     is TextSetting -> current
     is SliderSetting -> format(current)
-    is ToggleSetting -> if (current) "On" else "Off"
+    is ToggleSetting -> if (current) ctx.getString(R.string.on) else ctx.getString(R.string.off)
     else -> null
 }

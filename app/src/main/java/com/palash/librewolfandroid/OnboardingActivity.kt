@@ -260,7 +260,11 @@ class OnboardingActivity : AppCompatActivity() {
             params.marginEnd = (4 * density()).toInt()
             dot.setBackgroundResource(R.drawable.onboarding_dot)
             dot.isSelected = index == page
-            dot.contentDescription = getString(R.string.onboarding_page_x_of_y, index + 1, pages.size)
+            // Left out of the accessibility tree deliberately. These are 15dp
+            // dots that cannot be tapped, and each one repeated the same "Step N
+            // of 4" the step label above already says, so a screen reader met the
+            // sentence four more times with nothing to do about any of them.
+            dot.importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
             dots.addView(dot, params)
         }
     }

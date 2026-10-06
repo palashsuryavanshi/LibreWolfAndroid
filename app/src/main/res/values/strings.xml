@@ -91,7 +91,6 @@
     <string name="download_started">Download started</string>
     <string name="download_pending">Pending</string>
     <string name="download_running">Downloading</string>
-    <string name="download_paused">Paused</string>
     <string name="download_queued">Queued</string>
     <string name="pause_download">Pause</string>
     <string name="resume_download">Resume</string>
@@ -665,6 +664,38 @@
     <string name="private_tab">Private</string>
     <string name="selected_tab">Selected</string>
     <string name="loading">Loading</string>
+    <string name="option_selected">%1$s, selected</string>
+    <string name="option_not_selected">%1$s</string>
+    <string name="install_ext">Install %1$s</string>
+    <string name="installed_ext">%1$s, installed</string>
+    <string name="bookmark_deleted">Bookmark removed</string>
+    <string name="login_deleted">Login removed</string>
+    <string name="history_deleted">History entry removed</string>
+    <string name="addon_uninstalled">%1$s removed</string>
+    <string name="downloads_cleared">Download history cleared</string>
+    <string name="no_openable_download">That file is no longer on this device</string>
+    <string name="download_removed">Removed from the list</string>
+    <string name="download_pause_done">Download paused</string>
+    <string name="download_resume_done">Download resumed</string>
+    <string name="download_cancel_done">Download canceled</string>
+    <string name="download_retry_done">Download restarted</string>
+    <string name="a11y_close_all_tabs">Close all %1$d tabs</string>
+    <string-array name="download_filters">
+        <item>@string/filter_all</item>
+        <item>@string/filter_images</item>
+        <item>@string/filter_docs</item>
+        <item>@string/filter_other</item>
+    </string-array>
+    <string name="engine_is_default">%1$s, current search engine</string>
+    <string name="engine_not_default">%1$s</string>
+    <string name="a11y_engine_actions">Actions for %1$s</string>
+    <string name="filter_selected">%1$s, selected</string>
+    <string name="a11y_addon_actions">Actions for %1$s</string>
+    <string name="a11y_clear_capability">Clear permissions for %1$s on all sites</string>
+    <string name="deleted">Deleted</string>
+    <string name="download_paused">Paused</string>
+    <string name="download_resumed">Resumed</string>
+    <string name="nothing_to_share">Nothing can receive this</string>
     <string name="a11y_delete_history_entry">Delete history entry for %1$s</string>
     <string name="a11y_delete_bookmark">Delete bookmark %1$s</string>
     <string name="a11y_delete_login">Delete saved login for %1$s</string>

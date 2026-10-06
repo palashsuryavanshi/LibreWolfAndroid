@@ -38,6 +38,7 @@ class HistoryActivity : AppCompatActivity() {
             onDelete = { entry ->
                 store.remove(entry.url)
                 reload()
+                confirm(R.string.history_deleted)
             },
         )
         findViewById<RecyclerView>(R.id.history_list).apply {
