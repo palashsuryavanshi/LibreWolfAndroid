@@ -1823,7 +1823,8 @@ class MainActivity : AppCompatActivity() {
         // reliably announced by TalkBack, and it disappears before a screen-reader
         // user has finished reading it. Copying is one of the few actions with no
         // visible result of its own, so it says so out loud too.
-        rootView.announceForAccessibility(getString(R.string.copied_to_clipboard))
+        findViewById<View>(android.R.id.content)
+            ?.announceForAccessibility(getString(R.string.copied_to_clipboard))
     }
 
     private fun showContextMenu(

@@ -52,8 +52,11 @@ class PasswordsActivity : AppCompatActivity() {
     private fun reload() {
         val items = store.all()
         adapter.update(items)
-        emptyState.bind(items.size, { getString(R.string.no_saved_login) }) {
-            getString(R.string.no_saved_login_hint)
+        // "No saved login for this site" is the per-site wording, used when a form
+        // asks the vault about one site. This screen shows the whole vault, so it
+        // has to say the vault is empty rather than implying a site was looked up.
+        emptyState.bind(items.size, { getString(R.string.no_logins) }) {
+            getString(R.string.no_logins_hint)
         }
     }
 

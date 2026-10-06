@@ -575,7 +575,7 @@
     <string name="no_saved_login_hint">Logins you save appear here. Nothing is sent anywhere: the vault is encrypted on this phone.</string>
     <string name="no_logins">No saved logins</string>
     <string name="no_logins_hint">Add one with the + button, or save a login when a site asks.</string>
-    <string name="no_bookmarks_hint">Bookmark a page from the menu in the bottom toolbar.</string>
+    <string name="no_bookmarks_hint">Use the add button above to bookmark a page you are on.</string>
     <string name="no_downloads_hint">Files you download are saved here and to your Downloads folder.</string>
     <string name="no_history_hint">Pages you visit are listed here.</string>
     <string name="no_matches_for">No matches for “%1$s”</string>
