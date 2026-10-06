@@ -570,13 +570,23 @@
     <string name="privacy_report_sub">Trackers and threats blocked so far</string>
     <string name="sec_cookie_policy">Policy</string>
     <string name="search_sites">Search sites</string>
-    <string name="no_site_match">No site matches �%1$s�.</string>
+    <string name="no_site_match">No site matches “%1$s”.</string>
+    <string name="also_in_engine">• also held by the engine</string>
+    <string name="no_saved_login_hint">Logins you save appear here. Nothing is sent anywhere: the vault is encrypted on this phone.</string>
+    <string name="no_logins">No saved logins</string>
+    <string name="no_logins_hint">Add one with the + button, or save a login when a site asks.</string>
+    <string name="no_bookmarks_hint">Bookmark a page from the menu in the bottom toolbar.</string>
+    <string name="no_downloads_hint">Files you download are saved here and to your Downloads folder.</string>
+    <string name="no_history_hint">Pages you visit are listed here.</string>
+    <string name="no_matches_for">No matches for “%1$s”</string>
+    <string name="no_downloads_match">No downloads in this filter</string>
+    <string name="no_bookmarks_match">No bookmarks match “%1$s”</string>
+    <string name="no_history_match">No history matches “%1$s”</string>
     <string name="no_sites">No site has a decision yet</string>
     <plurals name="sites_with_decision">
         <item quantity="one">%1$d site</item>
         <item quantity="other">%1$d sites</item>
     </plurals>
-    <string name="also_in_engine"> � also held by the engine</string>
     <string name="forget_this_site">Forget this site</string>
     <string name="site_forgotten">Decision forgotten</string>
     <string name="reset_capability_message">%1$d sites will be asked again from now on.</string>
@@ -652,4 +662,25 @@
     <string name="private_browsing_channel_description">A quiet reminder that the tab in front is a private one.</string>
     <string name="private_browsing_notification_title">Private browsing is active</string>
     <string name="private_browsing_notification_text">This tab keeps no history, cookies or site data. Tap to put this away.</string>
+    <string name="private_tab">Private</string>
+    <string name="selected_tab">Selected</string>
+    <string name="loading">Loading</string>
+    <string name="a11y_delete_history_entry">Delete history entry for %1$s</string>
+    <string name="a11y_delete_bookmark">Delete bookmark %1$s</string>
+    <string name="a11y_delete_login">Delete saved login for %1$s</string>
+    <string name="a11y_download_actions">Actions for %1$s</string>
+    <string name="a11y_uninstall_addon">Uninstall %1$s</string>
+    <string name="a11y_close_tab">Close tab: %1$s</string>
+    <string name="a11y_engine_picker">Change search engine. Current engine %1$s</string>
+    <string name="a11y_tab_count">Tabs</string>
+    <string name="a11y_row_icon">Row icon</string>
+    <string name="a11y_announce_copied">Copied to clipboard</string>
+    <plurals name="tabs_open">
+        <item quantity="one">%1$d open tab</item>
+        <item quantity="other">%1$d open tabs</item>
+    </plurals>
+    <plurals name="private_tabs_open">
+        <item quantity="one">%1$d open private tab</item>
+        <item quantity="other">%1$d open private tabs</item>
+    </plurals>
 </resources>

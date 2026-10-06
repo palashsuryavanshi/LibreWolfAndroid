@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared empty state for the list screens.
+
+  Overlays the list area as a sibling inside a FrameLayout rather than stacking
+  with it. That is what makes the toggle work: exactly one of the two is visible,
+  and whichever it is takes the whole area.
+
+  An empty screen is a moment where the app should say what to do next, not a
+  blank one. Two things were wrong before: the password screen had no empty state
+  at all, and history and bookmarks used a Toast, which is gone within seconds and
+  is not spoken by a screen reader.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/empty_state"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:paddingStart="32dp"
+    android:paddingTop="24dp"
+    android:paddingEnd="32dp"
+    android:paddingBottom="24dp"
+    android:visibility="gone">
+
+    <TextView
+        android:id="@+id/empty_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="@color/librewolf_text"
+        android:textSize="17sp" />
+
+    <TextView
+        android:id="@+id/empty_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:textColor="@color/librewolf_grey"
+        android:textSize="14sp"
+        android:visibility="gone" />
+</LinearLayout>

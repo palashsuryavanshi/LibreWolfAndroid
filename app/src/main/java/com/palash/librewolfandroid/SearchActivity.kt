@@ -82,6 +82,28 @@ class SearchActivity : AppCompatActivity() {
         list.addView(v)
     }
 
+    /**
+     * A switch row that can be turned off because the feature is not there.
+     *
+     * [switchRow] above renders a live-looking toggle. Using it for something the
+     * app cannot do produced the worst of both: the switch looked and behaved as
+     * enabled, tapping it raised a "not available" dialog, and the rebuild put it
+     * back where it started. To the user the control was broken rather than
+     * unavailable, which is a different thing and not the one that was true.
+     */
+    private fun unavailableRow(title: String, subtitle: String) {
+        val v = layoutInflater.inflate(R.layout.item_setting, list, false)
+        v.findViewById<TextView>(R.id.set_title).text = title
+        v.findViewById<TextView>(R.id.set_sub).text = subtitle
+        v.findViewById<ImageView>(R.id.set_icon).visibility = View.GONE
+        v.findViewById<SwitchCompat>(R.id.set_switch).visibility = View.GONE
+        // Dimmed and non-clickable, so the state is visible before the tap rather
+        // than discovered by tapping.
+        v.isEnabled = false
+        v.alpha = 0.5f
+        list.addView(v)
+    }
+
     private fun build() {
         list.removeAllViews()
 
@@ -93,14 +115,10 @@ class SearchActivity : AppCompatActivity() {
             getString(R.string.manage_engines),
             getString(R.string.manage_engines_sub),
         ) { startActivity(Intent(this, SearchEnginesActivity::class.java)) }
-        switchRow(getString(R.string.home_widget), false) {
-            AlertDialog.Builder(this)
-                .setTitle(getString(R.string.home_widget))
-                .setMessage(getString(R.string.not_available))
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
-            build()
-        }
+        unavailableRow(
+            getString(R.string.home_widget),
+            getString(R.string.not_available),
+        )
         divider()
 
         section(getString(R.string.sec_suggestions))

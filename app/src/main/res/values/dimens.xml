@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <dimen name="favicon_size">36dp</dimen>
+
+    <!-- Tallest the address-bar suggestion list may become. It sits between the
+         page and the controls, so past this the address bar and the menu button
+         start leaving the screen. Applied in code: android:maxHeight is ignored
+         by RecyclerView. -->
+    <dimen name="suggestions_max_height">320dp</dimen>
+
+    <!-- The toolbar row. A floor, not a ceiling: it has to hold the address text
+         at any font scale, so the height follows the text rather than clipping
+         it. The minimum keeps the tap target comfortable at the default scale. -->
+    <dimen name="toolbar_min_height">46dp</dimen>
+
+    <!-- Smallest tap target anywhere in the browser. Android's accessibility
+         guidance is 48dp; a visible icon can stay smaller than this as long as
+         the view that receives the touch does not. -->
+    <dimen name="touch_target">48dp</dimen>
+
+    <!-- The engine badge is a single letter in a circle. It is sized off the
+         text rather than fixed, so the letter is never clipped when the system
+         font scale rises. -->
+    <dimen name="engine_badge_min_size">28dp</dimen>
 </resources>

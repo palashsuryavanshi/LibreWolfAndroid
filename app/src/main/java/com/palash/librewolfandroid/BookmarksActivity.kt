@@ -20,6 +20,7 @@ class BookmarksActivity : AppCompatActivity() {
 
     private lateinit var store: BookmarkStore
     private lateinit var adapter: BookmarksAdapter
+    private lateinit var emptyState: EmptyState
     private var query = ""
     private var sortMode = 0
 
@@ -40,6 +41,7 @@ class BookmarksActivity : AppCompatActivity() {
         setContentView(R.layout.activity_bookmarks)
         SystemBars.apply(this)
         store = BookmarkStore(this)
+        emptyState = EmptyState.of(findViewById(android.R.id.content), R.id.bookmarks_list, R.id.bookmarks_empty)
 
         adapter = BookmarksAdapter(
             emptyList(),
@@ -80,13 +82,27 @@ class BookmarksActivity : AppCompatActivity() {
                 else -> entries
             }
         }
-        adapter.update(
-            if (query.isEmpty()) all
-            else all.filter { it.title.contains(query, true) || it.url.contains(query, true) || it.folder.contains(query, true) },
+        val shown = if (query.isEmpty()) all
+        else all.filter { it.title.contains(query, true) || it.url.contains(query, true) || it.folder.contains(query, true) }
+        adapter.update(shown)
+        // The empty message is now a view rather than a Toast. The Toast was gone
+        // within seconds, repeated itself on every onResume, and said "no
+        // bookmarks" even when the user had plenty and the search simply matched
+        // nothing -- which is the one moment they most need telling apart.
+        emptyState.bind(
+            shown.size,
+            {
+                if (query.isEmpty()) getString(R.string.no_bookmarks)
+                else getString(R.string.no_bookmarks_match, query)
+            },
+            // Only the never-had-any case gets the hint; telling someone how to
+            // add a bookmark while they are narrowing an existing list is noise.
+            if (query.isEmpty()) {
+                { getString(R.string.no_bookmarks_hint) }
+            } else {
+                null
+            },
         )
-        if (all.isEmpty()) {
-            Toast.makeText(this, getString(R.string.no_bookmarks), Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun showBookmarkMenu(bookmark: Bookmark?) {
@@ -241,6 +257,10 @@ class BookmarksActivity : AppCompatActivity() {
             h.itemView.setOnClickListener { onOpen(bm) }
             h.itemView.setOnLongClickListener { onMenu(bm); true }
             h.delete.setOnClickListener { onDelete(bm) }
+            h.delete.contentDescription = h.itemView.context.getString(
+                R.string.a11y_delete_bookmark,
+                bm.title.ifBlank { bm.url },
+            )
         }
 
         override fun getItemCount(): Int = items.size

@@ -34,10 +34,12 @@
             android:paddingTop="28dp"
             android:paddingEnd="24dp">
 
+            <!-- The logo is decorative: the title beside it already says the app name, so
+             labelling this too made a screen reader announce it twice. -->
             <ImageView
                 android:layout_width="44dp"
                 android:layout_height="44dp"
-                android:contentDescription="@string/app_name"
+                android:importantForAccessibility="no"
                 android:scaleType="fitCenter"
                 android:src="@drawable/librewolf_logo" />
 
@@ -47,13 +49,15 @@
                 android:layout_weight="1" />
 
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:gravity="center_vertical"
-                android:text="@string/app_name"
-                android:textColor="@color/librewolf_text"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+            android:id="@+id/home_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="44dp"
+            android:text="@string/app_name"
+            android:textColor="@color/librewolf_text"
+            android:textSize="20sp"
+            android:textStyle="bold" />
         </LinearLayout>
 
         <ImageButton
@@ -86,11 +90,16 @@
         android:orientation="vertical"
         android:visibility="gone">
 
+        <!-- The suggestion list is bounded in code, not by android:maxHeight:
+             that attribute is honoured by TextView and ImageView and silently
+             ignored by RecyclerView. Left unbounded it grows with the result
+             count and pushes browser_controls off the bottom of the screen,
+             taking the address bar and the menu button with it and leaving no
+             way out but the system gesture. -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/suggestions_list"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxHeight="320dp" />
+            android:layout_height="wrap_content" />
     </LinearLayout>
 
     <LinearLayout
@@ -104,13 +113,18 @@
         android:paddingEnd="16dp"
         android:paddingBottom="14dp">
 
+        <!-- minHeight rather than height: the row holds the address text, which is
+             the most-scaled text in the app, and a fixed height clipped it once
+             the system font scale rose. The engine badge inside is sized off its
+             own glyph so it cannot clip either. -->
         <LinearLayout
             android:id="@+id/toolbar"
             android:layout_width="0dp"
-            android:layout_height="46dp"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:background="@drawable/bg_bar"
             android:gravity="center_vertical"
+            android:minHeight="@dimen/toolbar_min_height"
             android:orientation="horizontal"
             android:paddingStart="8dp"
             android:paddingEnd="12dp">
@@ -118,20 +132,25 @@
             <LinearLayout
                 android:id="@+id/engine_picker"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:clickable="true"
-                android:focusable="false"
+                android:focusable="true"
                 android:gravity="center_vertical"
+                android:minHeight="@dimen/touch_target"
+                android:minWidth="@dimen/touch_target"
                 android:orientation="horizontal"
-                android:paddingEnd="4dp">
+                android:paddingEnd="4dp"
+                android:paddingStart="4dp">
 
                 <TextView
                     android:id="@+id/engine_badge"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
+                    android:layout_width="@dimen/engine_badge_min_size"
+                    android:layout_height="@dimen/engine_badge_min_size"
                     android:background="@drawable/bg_engine_badge"
                     android:gravity="center"
+                    android:importantForAccessibility="no"
+                    android:minWidth="@dimen/engine_badge_min_size"
                     android:textColor="@color/librewolf_text"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -140,14 +159,14 @@
                     android:id="@+id/engine_chevron"
                     android:layout_width="16dp"
                     android:layout_height="24dp"
-                    android:contentDescription="@string/default_search_engine"
+                    android:importantForAccessibility="no"
                     android:src="@drawable/ic_chevron" />
             </LinearLayout>
 
             <EditText
                 android:id="@+id/address_text"
                 android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
                 android:layout_weight="1"
                 android:background="@null"
@@ -155,23 +174,27 @@
                 android:gravity="center_vertical"
                 android:hint="@string/url_hint"
                 android:imeOptions="actionGo"
+                android:importantForAutofill="no"
                 android:inputType="textUri"
-                android:singleLine="true"
+                android:maxLines="1"
+                android:minHeight="40dp"
                 android:textColor="@color/librewolf_text"
                 android:textColorHint="@color/librewolf_grey"
                 android:textSize="16sp" />
 
             <ImageButton
                 android:id="@+id/btn_voice"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="@dimen/touch_target"
+                android:layout_height="@dimen/touch_target"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/show_voice_search"
-                android:focusable="false"
+                android:focusable="true"
                 android:src="@drawable/ic_mic"
                 android:visibility="gone" />
         </LinearLayout>
 
+        <!-- The count is the whole affordance, so it has to read as a button and
+             be reachable by touch. 38x32dp was neither. -->
         <TextView
             android:id="@+id/tabs_count"
             android:layout_width="wrap_content"
@@ -179,23 +202,22 @@
             android:layout_marginStart="10dp"
             android:background="@drawable/bg_tab_count"
             android:clickable="true"
-            android:focusable="false"
+            android:focusable="true"
             android:gravity="center"
-            android:minWidth="38dp"
-            android:minHeight="32dp"
-            android:text="1"
+            android:minWidth="@dimen/touch_target"
+            android:minHeight="@dimen/touch_target"
             android:textColor="@color/librewolf_text"
             android:textSize="14sp"
             android:textStyle="bold" />
 
         <ImageButton
             android:id="@+id/btn_menu"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/touch_target"
+            android:layout_height="@dimen/touch_target"
             android:layout_marginStart="4dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/menu"
-            android:focusable="false"
+            android:focusable="true"
             android:src="@drawable/ic_menu" />
     </LinearLayout>
 </LinearLayout>

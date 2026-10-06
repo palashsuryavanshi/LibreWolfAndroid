@@ -184,6 +184,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tabsCount: TextView
     private var suggestionsAdapter: SuggestionsAdapter? = null
     private var suggestionsBox: android.view.ViewGroup? = null
+    private var suggestionsList: androidx.recyclerview.widget.RecyclerView? = null
     /**
      * Suggestion inputs, cached. updateSuggestions used to re-parse the whole
      * history and bookmark JSON on every keystroke -- three full parses per
@@ -202,6 +203,9 @@ class MainActivity : AppCompatActivity() {
     private var webAppManifest: org.json.JSONObject? = null
     private var webAppUrl: String? = null
     private var webAppIconUrl: String? = null
+
+    /** Which tab shipped [webAppManifest]. -1 when none has. */
+    private var webAppManifestTabId: Long = -1L
     private var immersiveMode = false
     // True only between the Quit confirmation and process end. See askQuit
     // and onDestroy: destruction alone must not wipe user data.
@@ -364,10 +368,58 @@ class MainActivity : AppCompatActivity() {
         box.visibility = View.VISIBLE
     }
 
+    /**
+     * Keeps the suggestion list from growing past the space the toolbar needs.
+     *
+     * The list sits between the page and the controls, so an unbounded result set
+     * pushes the address bar and the menu button off the bottom of the screen, and
+     * with them the only way out of the box the user is stuck in. `android:maxHeight`
+     * in the layout is honoured by TextView and ImageView and ignored by
+     * RecyclerView, so the cap has to be applied here.
+     *
+     * The clamp uses the height the list actually measured rather than a row
+     * height times a count, so it stays correct when the row wraps to two lines
+     * or the user raises the system font scale. Assigning the capped height
+     * triggers one more layout pass, in which the measured height already equals
+     * the target, so it settles instead of oscillating.
+     */
+    private fun installSuggestionCap(list: androidx.recyclerview.widget.RecyclerView) {
+        list.viewTreeObserver.addOnGlobalLayoutListener {
+            if (suggestionsBox?.visibility != View.VISIBLE) return@addOnGlobalLayoutListener
+            val params = list.layoutParams ?: return@addOnGlobalLayoutListener
+            val measured = list.measuredHeight
+            if (measured <= 0) return@addOnGlobalLayoutListener
+            val cap = resources.getDimensionPixelSize(R.dimen.suggestions_max_height)
+            val target = measured.coerceAtMost(cap)
+            if (params.height != target) {
+                params.height = target
+                list.layoutParams = params
+            }
+        }
+    }
+
     private fun hideSuggestions() {
         suggestionPending?.let { suggestionHandler.removeCallbacks(it) }
         suggestionPending = null
         suggestionsBox?.visibility = View.GONE
+    }
+
+    /**
+     * Takes the address bar out of editing mode: focus off the field, keyboard
+     * down, and the field showing the page again rather than what was typed.
+     *
+     * Both halves are needed. The field keeps its own window token until the IME
+     * is told explicitly, so `clearFocus()` alone leaves the keyboard on screen
+     * and the next page loads behind it. And the focus listener restores the
+     * displayed URL, which is what turns the bar back into a status display
+     * rather than a text field the user never left.
+     */
+    private fun leaveEditing() {
+        hideSuggestions()
+        addressText.clearFocus()
+        (getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+            as? android.view.inputmethod.InputMethodManager)
+            ?.hideSoftInputFromWindow(addressText.windowToken, 0)
     }
 
     private fun readClipboard(): String? = try {
@@ -441,6 +493,7 @@ class MainActivity : AppCompatActivity() {
                 val newHost = runCatching { Uri.parse(url).host }.getOrNull()
                 if (oldHost != null && newHost != null && oldHost != newHost) {
                     webAppManifest = null
+                    webAppManifestTabId = -1L
                     webAppUrl = null
                     webAppIconUrl = null
                 }
@@ -607,7 +660,16 @@ class MainActivity : AppCompatActivity() {
 
         override fun onWebAppManifest(session: GeckoSession, manifest: org.json.JSONObject) {
             val tab = tabFor(session) ?: return
+            // A manifest arriving from a background tab must not be allowed to
+            // decide what the tab in front looks like. applyWebAppDisplayMode()
+            // reads the shared manifest field and then hides the entire chrome --
+            // address bar, tab tray, menu -- so without this guard a page
+            // declaring `display: standalone` could strip the toolbar off a tab
+            // the user was reading normally. Every sibling callback here already
+            // guards on the active tab; this one did not.
+            if (tab.id != activeId) return
             webAppManifest = manifest
+            webAppManifestTabId = tab.id
             webAppUrl = tab.url
             webAppIconUrl = webAppIcon(manifest, tab.url)
             webAppIconUrl?.let { FaviconCache.prefetchImage(it) }
@@ -951,18 +1013,10 @@ class MainActivity : AppCompatActivity() {
         // waste in front of the first page render. selectTab renders the
         // shortcuts when it actually reveals the overlay instead.
         addressText.setOnEditorActionListener { v, _, _ ->
-            hideSuggestions()
+            // Editing has to end BEFORE navigate(), or the result loads behind a
+            // keyboard the user has just dismissed.
+            leaveEditing()
             navigate((v as EditText).text.toString())
-            // clearFocus() alone does not always take the keyboard down: the
-            // editor keeps its window token until the IME is explicitly told, so
-            // the result loads behind a keyboard the user just dismissed.
-            addressText.clearFocus()
-            // The IME holds its own window token, so clearing focus on the field
-            // is not enough to take the keyboard down; the result would load
-            // behind a keyboard the user has just dismissed.
-            (getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-                as? android.view.inputmethod.InputMethodManager)
-                ?.hideSoftInputFromWindow(addressText.windowToken, 0)
             true
         }
         addressText.setOnFocusChangeListener { _, focused ->
@@ -986,14 +1040,30 @@ class MainActivity : AppCompatActivity() {
         voice.visibility = if (store.voiceSearch) View.VISIBLE else View.GONE
         voice.setOnClickListener { startVoiceSearch() }
         findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.suggestions_list).apply {
+            suggestionsList = this
             layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@MainActivity)
             adapter = SuggestionsAdapter(emptyList()).also { suggestionsAdapter = it }
+            installSuggestionCap(this)
         }
         tabsCount.setOnClickListener { showTabsSheet() }
         findViewById<View>(R.id.btn_menu).setOnClickListener { showMenuSheet() }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
+                // Back peels off one layer of transient state at a time, and
+                // editing outranks navigation. While the address field holds
+                // focus the user is reading or changing what they typed; going
+                // back in page history underneath them throws that text away
+                // without ever putting the keyboard away, and the page they land
+                // on is not one they asked for. Android gives the IME first
+                // refusal on Back, so with the soft keyboard up this arm is
+                // reached only once the keyboard has already gone and the field
+                // still has focus -- the second press of a two-press exit.
+                if (addressText.hasFocus() || suggestionsBox?.visibility == View.VISIBLE) {
+                    hideSuggestions()
+                    leaveEditing()
+                    return
+                }
                 val tab = activeTab()
                 if (fullscreenSession != null) {
                     setBrowserFullscreen(tab?.session ?: return, false)
@@ -1607,7 +1677,15 @@ class MainActivity : AppCompatActivity() {
      */
     private fun updateBadge() {
         val privateActive = activeTab()?.isPrivate == true
-        tabsCount.text = tabs.count { it.isPrivate == privateActive }.toString()
+        val count = tabs.count { it.isPrivate == privateActive }
+        tabsCount.text = count.toString()
+        // The bare digit tells a screen reader nothing about what tapping it
+        // does, so it is restated as the count of the kind of tab in front.
+        tabsCount.contentDescription = if (privateActive) {
+            resources.getQuantityString(R.plurals.private_tabs_open, count, count)
+        } else {
+            resources.getQuantityString(R.plurals.tabs_open, count, count)
+        }
     }
 
     private fun updateTrackers() {
@@ -1741,6 +1819,11 @@ class MainActivity : AppCompatActivity() {
         val clipboard = getSystemService(android.content.ClipboardManager::class.java)
         clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, text))
         Toast.makeText(this, getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
+        // A Toast is a sighted user's confirmation and nothing more: it is not
+        // reliably announced by TalkBack, and it disappears before a screen-reader
+        // user has finished reading it. Copying is one of the few actions with no
+        // visible result of its own, so it says so out loud too.
+        rootView.announceForAccessibility(getString(R.string.copied_to_clipboard))
     }
 
     private fun showContextMenu(
@@ -1876,6 +1959,12 @@ class MainActivity : AppCompatActivity() {
         val engine = store.engineFor(activeTab()?.isPrivate == true)
         badge.text = badgeLetter(engine.name, engine.name)
         badge.background?.setTint(badgeColorFor(engine.name))
+        // The badge is a single letter, so the control that holds it said nothing
+        // to a screen reader: it was announced only as the static string
+        // "default search engine" regardless of which engine was actually live.
+        // The name now goes on the tappable parent, which is what gets focus.
+        findViewById<View>(R.id.engine_picker)?.contentDescription =
+            getString(R.string.a11y_engine_picker, engine.name)
     }
 
     private fun showEnginePicker() {
@@ -2149,7 +2238,12 @@ class MainActivity : AppCompatActivity() {
     private fun applyWebAppDisplayMode() {
         if (!::browserControls.isInitialized) return
         val tab = activeTab() ?: return
-        val display = webAppManifest?.optString("display").orEmpty().lowercase()
+        // Only a manifest the tab in front itself shipped may change how that tab
+        // is displayed. Carrying one across a tab switch would apply the previous
+        // tab's mode to whatever came next, and a background tab's manifest
+        // would strip the chrome off a page being read normally.
+        val owns = webAppManifest != null && webAppManifestTabId == tab.id
+        val display = if (owns) webAppManifest?.optString("display").orEmpty().lowercase() else ""
         val launched = webAppOrigin
         val onAppOrigin = launched != null && tab.url.isNotBlank() &&
             runCatching { Uri.parse(tab.url).host == Uri.parse(launched).host }.getOrDefault(false)
@@ -2464,6 +2558,19 @@ class MainActivity : AppCompatActivity() {
         // would claim private browsing is on when the app is gone.
         if (::privateIndicator.isInitialized) privateIndicator.dismiss()
         if (::mediaController.isInitialized) mediaController.release()
+        // The pending suggestion runnable posts to the main looper and reads
+        // this activity's views. Left queued it fires against a dead view tree
+        // after the next navigation has already started.
+        suggestionPending?.let { suggestionHandler.removeCallbacks(it) }
+        suggestionPending = null
+        // The runtime is process-wide and outlives this activity, but these three
+        // delegates each capture it. Left in place, a web notification tap, a
+        // service-worker window.open or an autofill query arriving in the gap
+        // between destruction and the next onCreate would run against a destroyed
+        // activity. Each is re-set in onCreate for the next instance.
+        runtime?.setWebNotificationDelegate(null)
+        runtime?.setAutocompleteStorageDelegate(null)
+        runtime?.setServiceWorkerDelegate(null)
         // Sanitizing here is gated on an explicit Quit, not on destruction
         // itself. Before the gate, leaving with Back (or a theme change, which
         // also recreates) wiped tabs, history, cookies and site data on a

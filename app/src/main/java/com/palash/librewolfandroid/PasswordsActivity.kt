@@ -17,12 +17,14 @@ class PasswordsActivity : AppCompatActivity() {
 
     private lateinit var store: LoginStore
     private lateinit var adapter: PasswordsAdapter
+    private lateinit var emptyState: EmptyState
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_passwords)
         SystemBars.apply(this)
         store = LoginStore(this)
+        emptyState = EmptyState.of(findViewById(android.R.id.content), R.id.passwords_list, R.id.passwords_empty)
 
         adapter = PasswordsAdapter(
             emptyList(),
@@ -47,7 +49,13 @@ class PasswordsActivity : AppCompatActivity() {
         reload()
     }
 
-    private fun reload() = adapter.update(store.all())
+    private fun reload() {
+        val items = store.all()
+        adapter.update(items)
+        emptyState.bind(items.size, { getString(R.string.no_saved_login) }) {
+            getString(R.string.no_saved_login_hint)
+        }
+    }
 
     private fun addDialog(prefillSite: String) {
         val box = LinearLayout(this).apply {
@@ -89,6 +97,11 @@ class PasswordsActivity : AppCompatActivity() {
                 getSystemService(android.content.ClipboardManager::class.java)
                     .setPrimaryClip(android.content.ClipData.newPlainText(login.username, login.password))
                 android.widget.Toast.makeText(this, R.string.copied_to_clipboard, android.widget.Toast.LENGTH_SHORT).show()
+                // Copying a password has no other visible result, and a Toast is
+                // not reliably spoken. Saying so out loud is the only confirmation
+                // a screen-reader user would otherwise get.
+                findViewById<View>(android.R.id.content)
+                    .announceForAccessibility(getString(R.string.copied_to_clipboard))
             }
             .setNeutralButton(getString(R.string.delete)) { _, _ ->
                 store.remove(login.site, login.username)
@@ -125,6 +138,10 @@ class PasswordsActivity : AppCompatActivity() {
             h.user.text = e.username.ifEmpty { "—" }
             h.itemView.setOnClickListener { onOpen(e) }
             h.delete.setOnClickListener { onDelete(e) }
+        h.delete.contentDescription = h.itemView.context.getString(
+            R.string.a11y_delete_login,
+            e.username.ifBlank { e.site },
+        )
         }
 
         override fun getItemCount(): Int = items.size

@@ -109,6 +109,35 @@ class ExtensionsActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Takes both delegates back off the runtime.
+     *
+     * The controller belongs to the process-wide GeckoRuntime, not to this
+     * screen, and both delegates are inner classes holding this activity. They
+     * were installed on entry and never removed, so after leaving the screen an
+     * add-on installing in the background still fired a Toast and re-resolved
+     * views on a destroyed activity. Only clear them when this screen is the one
+     * that installed them: another instance may already own the controller.
+     */
+    override fun onDestroy() {
+        if (installedDelegates) {
+            val c = controller()
+            try {
+                c?.setAddonManagerDelegate(null)
+            } catch (_e: Exception) {
+            }
+            try {
+                c?.promptDelegate = null
+            } catch (_e: Exception) {
+            }
+            installedDelegates = false
+        }
+        super.onDestroy()
+    }
+
+    /** True while this instance owns the runtime's add-on delegates. */
+    private var installedDelegates = false
+
     private inner class InstallPromptHandler : WebExtensionController.PromptDelegate {
         override fun onInstallPromptRequest(
             extension: WebExtension,

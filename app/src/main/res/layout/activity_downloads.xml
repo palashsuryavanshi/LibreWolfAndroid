@@ -108,12 +108,20 @@
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/downloads_list"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
+
+        <!-- Selecting a filter with nothing in it used to leave a blank screen
+             with no message at all, because the empty check looked at the whole
+             store rather than the filtered list. -->
+        <include
+            android:id="@+id/downloads_empty"
+            layout="@layout/view_empty_state" />
 
         <ImageButton
             android:id="@+id/downloads_fab"

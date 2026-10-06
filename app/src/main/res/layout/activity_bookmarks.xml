@@ -45,14 +45,22 @@
             android:src="@drawable/ic_folder_add" />
     </LinearLayout>
 
+    <!-- The list and the empty state overlay each other in this frame, so exactly
+         one of them is visible: with the list GONE the message takes the whole
+         area, and with the list shown the message is GONE and the rows fill. -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/bookmarks_list"
             android:layout_width="match_parent"
             android:layout_height="match_parent" />
+
+        <include
+            android:id="@+id/bookmarks_empty"
+            layout="@layout/view_empty_state" />
 
         <ImageButton
             android:id="@+id/bookmarks_fab"

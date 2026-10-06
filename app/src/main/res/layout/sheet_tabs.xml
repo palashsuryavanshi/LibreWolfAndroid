@@ -138,7 +138,8 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginEnd="8dp"
-                android:src="@drawable/ic_search" />
+                android:src="@drawable/ic_search" 
+            android:importantForAccessibility="no"/>
 
             <ImageView
                 android:layout_width="4dp"
@@ -171,7 +172,8 @@
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:layout_marginEnd="6dp"
-                android:src="@drawable/ic_shield" />
+                android:src="@drawable/ic_shield" 
+            android:importantForAccessibility="no"/>
 
             <TextView
                 android:id="@+id/tray_trackers"

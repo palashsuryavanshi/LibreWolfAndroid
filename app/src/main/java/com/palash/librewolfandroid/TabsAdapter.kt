@@ -123,6 +123,21 @@ class TabsAdapter(
         h.itemView.setOnClickListener { onSelect(tab.id) }
         h.itemView.setOnLongClickListener { onMenu(tab); true }
         h.close.setOnClickListener { onClose(tab.id) }
+        // Name the tab on the close button. A tray of six tabs gave a screen
+        // reader six identical "Close" buttons with nothing to tell them apart.
+        h.close.contentDescription = h.itemView.context.getString(
+            R.string.a11y_close_tab,
+            tab.title.ifBlank { tab.url.ifBlank { h.itemView.context.getString(R.string.new_tab) } },
+        )
+        // The card reads as one control: title, URL and state. Announced by the
+        // card itself rather than as three loose fragments.
+        h.itemView.contentDescription = listOfNotNull(
+            tab.title.ifBlank { null },
+            tab.url.ifBlank { null },
+            if (tab.isPrivate) h.itemView.context.getString(R.string.private_tab) else null,
+            if (tab.isLoading) h.itemView.context.getString(R.string.loading) else null,
+            if (tab.isSelected) h.itemView.context.getString(R.string.selected_tab) else null,
+        ).joinToString(", ").ifBlank { h.itemView.context.getString(R.string.new_tab) }
     }
 
     override fun getItemCount(): Int = tabs.size
@@ -208,16 +223,35 @@ class GroupedTabsAdapter(
             is Row.TabRow -> {
                 h as TabVH
                 val t = row.item
-                h.title.text = t.title.ifEmpty { t.url.ifEmpty { "New tab" } }
+                val ctx = h.itemView.context
+                h.title.text = t.title.ifEmpty { t.url.ifEmpty { ctx.getString(R.string.new_tab) } }
                 h.url.text = t.url
                 bindIcon(h.icon, t)
                 h.privateTag.visibility = if (t.isPrivate) View.VISIBLE else View.GONE
                 h.loading.visibility = if (t.isLoading) View.VISIBLE else View.GONE
                 h.card.strokeWidth = if (t.isSelected) 4 else 0
-                h.card.strokeColor = h.itemView.context.getColor(R.color.librewolf_accent)
+                h.card.strokeColor = ctx.getColor(R.color.librewolf_accent)
+                // The grouped adapter set only the stroke, so the selected card's
+                // background was left as whatever the previously bound row had
+                // painted. Recycling meant the highlight depended on scroll
+                // position rather than on which tab was actually selected.
+                h.card.setCardBackgroundColor(
+                    ctx.getColor(if (t.isSelected) R.color.librewolf_card2 else R.color.librewolf_card),
+                )
                 h.itemView.setOnClickListener { onSelect(t.id) }
                 h.itemView.setOnLongClickListener { onMenu(t); true }
                 h.close.setOnClickListener { onClose(t.id) }
+                h.close.contentDescription = ctx.getString(
+                    R.string.a11y_close_tab,
+                    t.title.ifBlank { t.url.ifBlank { ctx.getString(R.string.new_tab) } },
+                )
+                h.itemView.contentDescription = listOfNotNull(
+                    t.title.ifBlank { null },
+                    t.url.ifBlank { null },
+                    if (t.isPrivate) ctx.getString(R.string.private_tab) else null,
+                    if (t.isLoading) ctx.getString(R.string.loading) else null,
+                    if (t.isSelected) ctx.getString(R.string.selected_tab) else null,
+                ).joinToString(", ").ifBlank { ctx.getString(R.string.new_tab) }
             }
         }
     }

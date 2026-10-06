@@ -60,13 +60,23 @@ class HistoryActivity : AppCompatActivity() {
         val filtered = if (query.isEmpty()) all else all.filter {
             it.title.contains(query, true) || it.url.contains(query, true)
         }
-        adapter.update(grouped(filtered))
+        adapter.update(grouped(filtered, all.isEmpty()))
     }
 
-    private fun grouped(entries: List<HistoryEntry>): List<HistoryRow> {
+    /**
+     * [storeEmpty] is whether the store itself is empty, which is a different
+     * statement from [entries] being empty after a search.
+     */
+    private fun grouped(entries: List<HistoryEntry>, storeEmpty: Boolean): List<HistoryRow> {
         val rows = mutableListOf<HistoryRow>()
         if (entries.isEmpty()) {
-            rows.add(HistoryRow.Empty)
+            rows.add(
+                if (storeEmpty) {
+                    HistoryRow.Empty(getString(R.string.no_history), getString(R.string.no_history_hint))
+                } else {
+                    HistoryRow.Empty(getString(R.string.no_history_match, query))
+                },
+            )
             return rows
         }
         val cal = Calendar.getInstance()
@@ -127,7 +137,13 @@ class HistoryActivity : AppCompatActivity() {
     }
 
     sealed interface HistoryRow {
-        data object Empty : HistoryRow
+        /**
+         * Carries its own message. "No history yet" and "nothing matched your
+         * search" are different situations and the user can only act on one of
+         * them, so the row says which one it is rather than always claiming the
+         * store is empty.
+         */
+        data class Empty(val message: String, val hint: String? = null) : HistoryRow
         data class Header(val text: String) : HistoryRow
         data class Item(val entry: HistoryEntry) : HistoryRow
     }
@@ -180,7 +196,6 @@ class HistoryActivity : AppCompatActivity() {
                         setPadding(48, 64, 48, 64)
                         textSize = 16f
                         textAlignment = View.TEXT_ALIGNMENT_CENTER
-                        setText(R.string.no_history)
                         setTextColor(parent.context.getColor(R.color.librewolf_grey))
                     },
                 )
@@ -190,6 +205,10 @@ class HistoryActivity : AppCompatActivity() {
         override fun onBindViewHolder(h: RecyclerView.ViewHolder, position: Int) {
             when (val row = rows[position]) {
                 is HistoryRow.Header -> (h as HeaderVH).text.text = row.text
+                // The message is bound here rather than built into the view
+                // holder, because which message applies depends on whether the
+                // store is empty or only the search matched nothing.
+                is HistoryRow.Empty -> (h.itemView as TextView).text = row.message
                 is HistoryRow.Item -> {
                     h as ItemVH
                     h.title.text = row.entry.title
@@ -199,6 +218,12 @@ class HistoryActivity : AppCompatActivity() {
                     FaviconCache.bind(h.icon, h.favicon, row.entry.url, badgeLetter(row.entry.title, row.entry.url))
                     h.itemView.setOnClickListener { onOpen(row.entry) }
                     h.delete.setOnClickListener { onDelete(row.entry) }
+                // Name the entry: a list of twenty rows all announced "Delete"
+                // left a screen-reader user no way to know which one they were on.
+                h.delete.contentDescription = h.itemView.context.getString(
+                    R.string.a11y_delete_history_entry,
+                    row.entry.title.ifBlank { row.entry.url },
+                )
                 }
                 is HistoryRow.Empty -> Unit
             }

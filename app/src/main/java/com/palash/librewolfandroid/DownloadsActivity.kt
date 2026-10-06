@@ -24,6 +24,7 @@ class DownloadsActivity : AppCompatActivity() {
 
     private lateinit var adapter: DownloadsAdapter
     private lateinit var store: DownloadStore
+    private lateinit var emptyState: EmptyState
     private var filter = 0 // 0 all, 1 images, 2 docs, 3 other
     private var query = ""
 
@@ -32,6 +33,7 @@ class DownloadsActivity : AppCompatActivity() {
         setContentView(R.layout.activity_downloads)
         SystemBars.apply(this)
         store = DownloadStore(this)
+        emptyState = EmptyState.of(findViewById(android.R.id.content), R.id.downloads_list, R.id.downloads_empty)
         DownloadService.ensureChannel(this)
 
         adapter = DownloadsAdapter(
@@ -108,23 +110,34 @@ class DownloadsActivity : AppCompatActivity() {
 
     private fun reload() {
         val all = store.all()
-        adapter.update(
-            all.filter { t ->
-                val okFilter = when (filter) {
-                    1 -> t.mime.startsWith("image/")
-                    2 -> t.mime.startsWith("application/pdf") || t.mime.contains("word") ||
-                        t.mime.contains("officedocument") || t.mime.startsWith("text/")
-                    3 -> !(t.mime.startsWith("image/") || t.mime.startsWith("application/pdf") ||
-                        t.mime.contains("word") || t.mime.contains("officedocument") ||
-                        t.mime.startsWith("text/"))
-                    else -> true
-                }
-                okFilter && (query.isEmpty() || t.name.contains(query, true))
-            }.map { it to statusLabel(it) + folderLabel(it) },
-        )
-        if (all.isEmpty()) {
-            Toast.makeText(this, getString(R.string.no_downloads), Toast.LENGTH_SHORT).show()
+        val shown = all.filter { t ->
+            val okFilter = when (filter) {
+                1 -> t.mime.startsWith("image/")
+                2 -> t.mime.startsWith("application/pdf") || t.mime.contains("word") ||
+                    t.mime.contains("officedocument") || t.mime.startsWith("text/")
+                3 -> !(t.mime.startsWith("image/") || t.mime.startsWith("application/pdf") ||
+                    t.mime.contains("word") || t.mime.contains("officedocument") ||
+                    t.mime.startsWith("text/"))
+                else -> true
+            }
+            okFilter && (query.isEmpty() || t.name.contains(query, true))
         }
+        adapter.update(shown.map { it to statusLabel(it) + folderLabel(it) })
+        // The message distinguishes "nothing has ever been downloaded" from
+        // "nothing in this filter". The old check was against the whole store,
+        // so picking Images with no images on the device produced a blank screen
+        // with no explanation, and the Toast repeated on every onResume.
+        emptyState.bind(
+            shown.size,
+            {
+                if (all.isEmpty()) getString(R.string.no_downloads) else getString(R.string.no_downloads_match)
+            },
+            if (all.isEmpty()) {
+                { getString(R.string.no_downloads_hint) }
+            } else {
+                null
+            },
+        )
     }
 
     private fun openEntry(t: DownloadTask) {
