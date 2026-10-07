@@ -2,6 +2,52 @@ plugins {
     id 'com.android.application'
 }
 
+// F-Droid build.
+//
+// F-Droid's inclusion policy does not accept Google Play Services, and
+// GeckoView 147 declares com.google.android.gms:play-services-fido as a
+// NON-optional runtime dependency of its POM. There is no GeckoView artifact
+// without it, so the dependency is excluded here rather than wished away.
+//
+// What it costs, stated plainly: GeckoView reaches into the FIDO2 classes from
+// WebAuthnTokenManager, so this build cannot complete a WebAuthn / passkey
+// sign-in. Ordinary browsing and ordinary logins were verified on hardware with
+// this variant; a real passkey sign-in was not driven end to end, so how that
+// path fails is unknown. Note this does NOT make the build carry an
+// Anti-Feature: "GooglePlayServices" is not one of F-Droid's Anti-Features (the
+// list is Ads, DisabledAlgorithm, KnownVuln, NonFreeAdd, NonFreeAssets,
+// NonFreeDep, NonFreeNet, NoSourceSince, TetheredNet, Tracking). With Play
+// Services gone the build has none of them, which is the point of the exercise.
+//
+// The default build is UNCHANGED and still includes Play Services, so the
+// published APK keeps passkey support. Only builds passed -PfdroidBuild=true
+// drop it.
+//
+//   ./gradlew assembleRelease -PfdroidBuild=true
+def fdroidBuild = project.hasProperty('fdroidBuild') &&
+        project.property('fdroidBuild').toString().toBoolean()
+
+// Per-architecture build, and the version identity F-Droid assigns to it.
+//
+// F-Droid builds one APK per architecture and needs each to carry its own
+// version code, or the client cannot tell which architecture's entry is newer
+// and will not offer the update. The codes are derived from the upstream one
+// (100 * %c + 1 for armeabi-v7a, + 2 for arm64-v8a, + 3 for x86_64) and passed
+// back in, so the value here comes from the property rather than the literal
+// in defaultConfig.
+//
+// docs/FDROID.md writes the three build blocks out explicitly instead of
+// deriving them with VercodeOperation. VercodeOperation generates extra blocks
+// by copying the block it is given, so every generated block would inherit one
+// architecture's fdroidAbi — which cannot work when each needs a different one.
+//
+//   ./gradlew assembleRelease -PfdroidBuild=true -PfdroidAbi=arm64-v8a \
+//                             -PcurrentVersionCode=15600502 \
+//                             "-PfdroidVersionName=1.2beta3-fdroid"
+def fdroidAbi = project.findProperty('fdroidAbi')
+def currentVersionCode = project.findProperty('currentVersionCode')
+def fdroidVersionName = project.findProperty('fdroidVersionName')
+
 // Release signing. Neither the key nor its passwords are in the repository:
 // keystore.properties (gitignored) holds the path to a .jks that lives outside
 // the repo entirely, so a clone, a mirror or a zip of the project directory
@@ -24,7 +70,12 @@ if (hasReleaseKey) {
 android {
     namespace 'com.palash.librewolfandroid'
     compileSdk 37
-    buildToolsVersion '36.1.0'
+    // buildToolsVersion is deliberately NOT pinned. Pinning it to one exact
+    // revision means the build fails outright on any machine that does not
+    // already have that revision installed, which is the normal state of
+    // F-Droid's build server. Left unpinned, AGP uses the newest build-tools
+    // installed that meets its own minimum, so the build works on whatever
+    // revision the builder happens to ship.
 
     defaultConfig {
         applicationId 'com.palash.librewolfandroid'
@@ -36,14 +87,22 @@ android {
         // make this a downgrade, which Android refuses and for which the only
         // remedy is an uninstall -- and an uninstall deletes the user's history,
         // bookmarks, cookies and vault.
-        versionCode 156005
-        versionName '1.2beta3'
+        //
+        // currentVersionCode exists so F-Droid can assign a distinct code per
+        // ABI. It overrides the literal rather than replacing it, so the
+        // shipped version is always visible here.
+        versionCode (currentVersionCode ? currentVersionCode as int : 156005)
+        versionName (fdroidVersionName ?: '1.2beta3')
 
         // Mirrors source/version + source/release (desktop LibreWolf base). Kept
         // separate from versionName so About can show what this app is and what
         // engine it is based on without conflating the two.
         buildConfigField 'String', 'UPSTREAM_FIREFOX', '"156.0"'
         buildConfigField 'String', 'LIBREWOLF_RELEASE', '"1"'
+        // True only in the F-Droid build. The UI reads it so the Passkeys
+        // screen can state that passkeys are unavailable rather than imply
+        // they work, which they cannot without Play Services.
+        buildConfigField 'boolean', 'FDROID_BUILD', fdroidBuild.toString()
     }
 
     // GeckoView ships one libxul.so per ABI (~143-155 MB each, stored
@@ -61,8 +120,19 @@ android {
         abi {
             enable true
             reset()
-            include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
-            universalApk true
+            if (fdroidAbi) {
+                // F-Droid has one build block per architecture and each block
+                // must produce exactly one APK, so the ABI list is narrowed to
+                // the one being built and the universal output is suppressed.
+                // Leaving it on would hand F-Droid three per-ABI APKs plus a
+                // 223 MB universal one from every build, with no way to tell
+                // which to index.
+                include fdroidAbi
+                universalApk false
+            } else {
+                include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+                universalApk true
+            }
         }
     }
 
@@ -101,6 +171,8 @@ android {
     buildTypes {
         release {
             // Absent the key, this stays null and the variant emits -unsigned.apk.
+            // F-Droid relies on this: its builder has no keystore, so the release
+            // variant has to build unsigned rather than fail.
             signingConfig hasReleaseKey ? signingConfigs.releaseSigning : null
             minifyEnabled true
             // Resource shrinking is off on purpose. AGP runs the resource
@@ -134,6 +206,14 @@ dependencies {
     // AGP 9.4 embeds Kotlin 2.2.0: force stdlib metadata it can read.
     // (Dependency constraints can't downgrade; force can.)
     configurations.all {
+        if (fdroidBuild) {
+            // The whole group, not just play-services-fido. Excluding only the
+            // artifact left play-services-base/basement/tasks on the classpath,
+            // which kept GoogleApiActivity in the merged manifest while its
+            // classes were gone from the APK.
+            exclude group: 'com.google.android.gms'
+            exclude group: 'com.google.firebase'
+        }
         resolutionStrategy {
             force 'org.jetbrains.kotlin:kotlin-stdlib:2.2.20'
             force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.2.20'

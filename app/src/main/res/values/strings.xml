@@ -501,6 +501,10 @@
     <string name="passkeys_note">A passkey is created and used by the engine.</string>
     <string name="passkeys_title">Passkeys</string>
     <string name="passkeys_body">WebAuthn runs inside GeckoView and exposes no embedder hook, so there is nothing for the shell to switch on or off. Passkeys work where the engine supports them; this build has no setting for them.</string>
+    <!-- F-Droid build only. GeckoView implements WebAuthn on top of Google Play
+         Services, which that build excludes to satisfy F-Droid\'s inclusion
+         policy, so passkeys genuinely cannot work there. -->
+    <string name="passkeys_body_no_play_services">WebAuthn runs inside GeckoView, which implements it on top of Google Play Services. This build excludes Play Services to meet F-Droid\'s inclusion policy, so passkey sign-in is unavailable and a site that offers only a passkey will not let you in. Use a password or a one-time code where the site offers one.</string>
 
     <!-- Media -->
     <string name="settings_background_media">Keep playing in the background</string>

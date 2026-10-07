@@ -1,0 +1,41 @@
+Version 1.2beta3
+
+Tabs
+- Added a real tab list with a 50-tab cap; the active tab is always kept.
+- Sessions now survive the app being killed: each tab has a stable ID and the
+  active tab is recorded explicitly, rather than inferred by matching URLs.
+- Fixed a bug where pressing HOME destroyed every background tab. The
+  memory-pressure handler matched too many trim levels and suspended the
+  session on ordinary lifecycle events.
+
+Privacy and security
+- Private windows set FLAG_SECURE, so screenshots and screen recording are
+  blocked while a private tab is in front.
+- Web notification requests are refused in private mode.
+- Media session metadata (title, artist, artwork) is withheld in private mode.
+- Download request headers have credential-bearing values stripped before
+  anything is written to disk.
+- Android backup and device-to-device transfer are now switched off for every
+  data domain. Disabling backup alone did not cover device-to-device transfer
+  on Android 12 or later.
+- Web pages can no longer hand a component, a content:// URI or a permission
+  grant to another app through intent-scheme URLs.
+- The camera upload path was narrowed to its own directory rather than the
+  whole cache.
+
+Interface
+- New logo and adaptive launcher icon.
+- The address bar's Go/Search key now uses what you typed, instead of the
+  current page title.
+- Fixed two accessibility gaps: filter chips now announce their selected
+  state, and the disabled close-all button is no longer focusable.
+
+Stability
+- Bounded two favicon caches that grew by one entry per visited origin for
+  the life of the process.
+- Fixed a leak where the media controller kept the whole view tree alive.
+
+Known limitation in the F-Droid build
+- Passkey and WebAuthn sign-in does not work in the F-Droid build, because it
+  omits Google Play Services. Ordinary logins are unaffected. The GitHub
+  release includes Play Services and does support passkeys.

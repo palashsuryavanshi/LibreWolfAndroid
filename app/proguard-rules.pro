@@ -37,3 +37,22 @@
 -keepattributes *Annotation*, InnerClasses, Signature, Exceptions
 
 # No telemetry or analytics SDK is present, so nothing else needs suppressing.
+
+# F-Droid build only: Google Play Services is excluded there, and GeckoView
+# references the FIDO2 classes from WebAuthnTokenManager. Those references stay
+# in the bytecode and R8 treats them as missing, so the build fails without
+# these. Suppressing the warnings is what makes the F-Droid variant build; it
+# does not make passkeys work; that limitation is real and is documented in
+# docs/FDROID.md rather than papered over. The default build includes Play
+# Services and is unaffected by these rules.
+-dontwarn com.google.android.gms.**
+-dontwarn com.google.firebase.**
+
+# GeckoView's shaded ExoPlayer annotates methods with Checker Framework nullness
+# annotations (@EnsuresNonNull and friends). Those have CLASS retention, so they
+# are never present at runtime and never needed. In the default build they
+# arrive transitively via play-services-basement; with Play Services excluded the
+# F-Droid build loses that path, and R8 reports them as missing. Suppressing is
+# the honest fix here -- adding the artifact back would put a dependency on the
+# F-Droid build solely to satisfy a compiler.
+-dontwarn org.checkerframework.**

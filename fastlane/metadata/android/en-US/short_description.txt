@@ -1,0 +1,1 @@
+Privacy browser on the GeckoView engine. No telemetry, no tracking, no accounts.

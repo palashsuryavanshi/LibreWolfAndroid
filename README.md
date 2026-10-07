@@ -61,6 +61,18 @@ has to be an uninstall, and that loses your data. There is no way around this.
 
 If you never installed it, ignore this section.
 
+### There is also an F-Droid build
+
+The release above contains Google Play Services, which GeckoView pulls in for
+WebAuthn. F-Droid's inclusion policy does not allow them, so
+`./gradlew assembleRelease -PfdroidBuild=true` produces a build with Play
+Services excluded — verified to contain **zero** `com.google.android.gms`
+classes. The cost is that **passkey sign-in does not work in that build**;
+everything else, including ordinary logins, is unaffected. The GitHub release
+you are looking at keeps Play Services and does support passkeys.
+
+See [`docs/FDROID.md`](docs/FDROID.md).
+
 ### Why this is still a 1.2
 
 **No add-on has ever been installed.** The fourteen add-on rows render and every
@@ -861,6 +873,7 @@ meant to be checkable.
 | [`ROADMAP.md`](ROADMAP.md) | Architecture decision, delivery phases, defects found by testing on hardware |
 | [`TESTING.md`](TESTING.md) | What was exercised on real hardware, what was not, and where the engine stops the shell. The honest record — read this. |
 | [`docs/SETTINGS-PLAN.md`](docs/SETTINGS-PLAN.md) | Every setting, the API that backs it, and the seven things GeckoView 147 cannot support |
+| [`docs/FDROID.md`](docs/FDROID.md) | The F-Droid build: why Google Play Services are excluded, what that costs, and what is still unresolved before submitting |
 | [`docs/ACCOUNT-TESTING.md`](docs/ACCOUNT-TESTING.md) | Credentialed third-party flow testing without using a real account |
 
 ---

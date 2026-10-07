@@ -445,7 +445,18 @@ object SettingsScreens {
                 action(string(R.string.settings_autofill), { autofillInfo(it) }, string(R.string.settings_autofill_sub), null) 
             }
             section(footer = string(R.string.passkeys_note)) {
-                info(string(R.string.passkeys_title), string(R.string.passkeys_body))
+                // The F-Droid build ships without Google Play Services, and
+                // GeckoView implements WebAuthn on top of them, so passkeys
+                // genuinely do not work there. Claiming otherwise on that build
+                // would be saying something the app cannot back up.
+                info(
+                    string(R.string.passkeys_title),
+                    if (BuildConfig.FDROID_BUILD) {
+                        string(R.string.passkeys_body_no_play_services)
+                    } else {
+                        string(R.string.passkeys_body)
+                    }
+                )
             }
         }
     }

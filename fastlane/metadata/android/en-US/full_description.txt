@@ -1,0 +1,48 @@
+A privacy-focused web browser for Android built on Mozilla's GeckoView engine —
+the same engine that runs Firefox Desktop — with the privacy defaults of
+LibreWolf.
+
+**No telemetry, no tracking, no accounts**
+
+There is no analytics SDK, no crash reporting service, no advertising network
+and no account system. The app does not talk to any LibreWolf or Mozilla
+service. Nothing you browse is sent anywhere except to the sites you visit.
+
+**What it does**
+
+• Tabbed browsing with a session that survives the app being killed
+• Private browsing that leaves no trace in history or the session store
+• A downloads manager and a bookmark/history store, both on device
+• An encrypted password vault (AES-256-GCM) that never leaves the phone
+• HTTPS-only mode, cookie controls, and a per-site permission model
+• Reader-friendly pages and media playback handled by Gecko itself
+
+**Privacy, in the parts that usually get skipped**
+
+• Private windows set FLAG_SECURE, so the screen cannot be captured
+• Screenshots are blocked while a private tab is in front
+• Web notification requests are refused in private mode
+• Media session metadata is withheld in private mode
+• Download request headers have their credentials stripped before anything is
+written to disk
+• Android backup and device-to-device transfer are switched off for every
+data domain, so nothing leaves via the platform's own backup channels
+• Intent-scheme URLs from web content cannot hand a component, a content://
+URI or a grant permission to another app
+
+**Engine and provenance**
+
+GeckoView is fetched as a prebuilt FOSS binary from Mozilla's Maven repository
+and is not modified by this project. The version is pinned in build.gradle.
+
+**The F-Droid build omits Google Play Services**
+
+GeckoView declares Google Play Services as a dependency for its WebAuthn
+(passkey) implementation. Because F-Droid's inclusion policy does not accept
+proprietary libraries, this build excludes them — which means **passkey and
+WebAuthn sign-in does not work here**. Ordinary logins, including sites that
+fall back to a password or a one-time code, are unaffected. The GitHub release
+of this app is built with Play Services included and does support passkeys.
+
+This is an unofficial, community-run port. It is not affiliated with,
+endorsed by, or supported by the LibreWolf project or Mozilla.
