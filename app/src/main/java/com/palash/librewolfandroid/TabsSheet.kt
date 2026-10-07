@@ -175,8 +175,16 @@ class TabsSheet : BottomSheetDialogFragment() {
         // say so beforehand. Disabled and dimmed is the honest presentation: the
         // control is real, and there is currently nothing for it to act on.
         closeAllView?.apply {
-            isEnabled = shown.isNotEmpty()
-            alpha = if (shown.isEmpty()) 0.4f else 1f
+            val has = shown.isNotEmpty()
+            isEnabled = has
+            alpha = if (has) 1f else 0.4f
+            // Disabling is not enough on its own. A disabled view that is still
+            // focusable stays in the accessibility and keyboard traversal order,
+            // so a TalkBack or switch user can land on a control that does
+            // nothing and gets no explanation -- a dead stop with no way past it
+            // that looks like a working button. The empty-state text above the
+            // control is what tells them why.
+            isFocusable = has
             contentDescription = view?.context?.getString(
                 R.string.a11y_close_all_tabs,
                 shown.size,

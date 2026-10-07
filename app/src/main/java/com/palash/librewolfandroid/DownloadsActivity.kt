@@ -71,6 +71,13 @@ class DownloadsActivity : AppCompatActivity() {
         chip(R.id.chip_images, 1)
         chip(R.id.chip_docs, 2)
         chip(R.id.chip_other, 3)
+        // Paint once up front. paintChips() was only reachable from the click
+        // listener, so the initial screen kept the layout's unset state: no chip
+        // was marked selected -- not even "All", which is the default filter --
+        // and none of them had a content description. The accessibility fix was
+        // therefore only in effect after the user had already tapped a chip,
+        // which is the one case it was not meant to cover.
+        paintChips()
         reload()
     }
 
