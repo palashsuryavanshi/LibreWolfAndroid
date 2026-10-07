@@ -47,7 +47,7 @@ data class DownloadTask(
         put("mime", mime)
         put("folder", folder)
         put("folderUri", folderUri)
-        put("headers", JSONObject(headers as Map<*, *>))
+        put("headers", JSONObject(redactHeaders(headers) as Map<*, *>))
         put("createdAt", createdAt)
         put("state", state.name)
         put("bytesDownloaded", bytesDownloaded)
@@ -60,6 +60,33 @@ data class DownloadTask(
     }
 
     companion object {
+        /**
+         * Header names whose value is a credential.
+         *
+         * The download store is a plain SharedPreferences file inside the app's
+         * data directory. Anything written there is readable by anything that
+         * gets at the device or its backup, and these are exactly the values that
+         * would let someone act as the user against the origin that issued them.
+         * So they are dropped on the way to disk.
+         *
+         * Dropping them costs nothing operationally. A resumed download is
+         * re-fetched through Gecko, which owns the cookie jar and re-attaches the
+         * session's own cookies, so the stored headers were never what
+         * authenticated the retry. See DownloadEngine.registerDownloadRefresher.
+         */
+        private val SENSITIVE_HEADERS = setOf(
+            "cookie", "set-cookie", "cookie2", "set-cookie2",
+            "authorization", "proxy-authorization",
+            "www-authenticate", "proxy-authenticate",
+            "x-api-key", "x-auth-token", "x-csrf-token",
+            "x-amz-security-token", "x-goog-api-key",
+            "authentication-info", "proxy-authentication-info",
+        )
+
+        /** Request headers with every credential-bearing value removed. */
+        fun redactHeaders(headers: Map<String, String>): Map<String, String> =
+            headers.filterKeys { it.lowercase() !in SENSITIVE_HEADERS }
+
         fun fromJson(o: JSONObject): DownloadTask {
             val headers = mutableMapOf<String, String>()
             val h = o.optJSONObject("headers")

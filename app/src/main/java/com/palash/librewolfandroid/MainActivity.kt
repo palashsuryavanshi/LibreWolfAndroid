@@ -182,6 +182,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var trayTrackersText: String
     private lateinit var progress: ProgressBar
     private lateinit var addressText: EditText
+    /** Connection state for the tab in front. See updateSecurityIndicator. */
+    private lateinit var securityIndicator: android.widget.ImageView
     private lateinit var tabsCount: TextView
     private var suggestionsAdapter: SuggestionsAdapter? = null
     private var suggestionsBox: android.view.ViewGroup? = null
@@ -216,6 +218,28 @@ class MainActivity : AppCompatActivity() {
     private val serviceWorkerDelegate = object : GeckoRuntime.ServiceWorkerDelegate {
         override fun onOpenWindow(url: String): GeckoResult<GeckoSession> =
             GeckoResult.fromValue(createUnopenedPopup(isPrivate = false))
+    }
+
+    /**
+     * Web notifications, told how to recognise a private one.
+     *
+     * The delegate is installed on the runtime, which is process-wide, so it
+     * cannot see which session raised the notification. It is handed the source
+     * and asked whether a private tab owns it, so a private page's host does not
+     * end up on the lock screen.
+     */
+    private val webNotificationDelegate by lazy {
+        BrowserNotificationDelegate(this) { source -> isPrivateOrigin(source) }
+    }
+
+    /** Is [origin] a page belonging to one of the open private tabs? */
+    private fun isPrivateOrigin(origin: String?): Boolean {
+        if (origin.isNullOrBlank()) return false
+        val host = runCatching { Uri.parse(origin).host }.getOrNull() ?: return false
+        return tabs.any { tab ->
+            tab.isPrivate && tab.url.isNotBlank() &&
+                runCatching { Uri.parse(tab.url).host == host }.getOrDefault(false)
+        }
     }
 
     /** Origin the browser was launched for from a pinned web-app shortcut. */
@@ -816,45 +840,49 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun autofillFromVault(session: GeckoSession, focused: Autofill.Node) {
+        // Every one of these traces sits on the path to a password field, so the
+        // logs are diagnostics and nothing else: no URL, no field hints, no
+        // attribute dumps. Logcat on a shared or compromised device is readable
+        // by anything with READ_LOGS, and a line naming the site the user is
+        // logging into is browsing data written where it does not belong. The
+        // traces stay behind BuildConfig.DEBUG so the flow can still be
+        // followed while developing; a release build emits nothing at all.
+        val trace = if (BuildConfig.DEBUG) {
+            { message: String -> android.util.Log.d(AUTOFILL_TAG, message) }
+        } else {
+            { _: String -> }
+        }
         val autofillSession = session.autofillSession
         if (autofillSession == null) {
-            android.util.Log.d(AUTOFILL_TAG, "no autofill session")
+            trace("no autofill session")
             return
         }
         val root = autofillSession.root
         if (root == null) {
-            android.util.Log.d(AUTOFILL_TAG, "no autofill root")
+            trace("no autofill root")
             return
         }
         val nodes = collectNodes(root)
-        android.util.Log.d(
-            AUTOFILL_TAG,
-            "focus hint=${focused.getHint()} attrs=${focused.getAttributes()}",
-        )
-        nodes.forEach {
-            android.util.Log.d(
-                AUTOFILL_TAG,
-                "node hint=${it.getHint()} inputType=${it.getInputType()} " +
-                    "tag=${it.getTag()} attrs=${it.getAttributes()}",
-            )
-        }
+        trace("walked ${nodes.size} nodes")
         val password = nodes.firstOrNull { isPasswordField(it) }
         if (password == null) {
-            android.util.Log.d(AUTOFILL_TAG, "no password field among ${nodes.size} nodes")
+            trace("no password field among ${nodes.size} nodes")
             return
         }
         if (!isPasswordField(focused) && !isUsernameField(focused)) {
-            android.util.Log.d(AUTOFILL_TAG, "focused node is not a login field")
+            trace("focused node is not a login field")
             return
         }
         val url = tabFor(session)?.url
         if (url == null) {
-            android.util.Log.d(AUTOFILL_TAG, "no tab for session")
+            trace("no tab for session")
             return
         }
         val login = loginStore.forOrigin(url).firstOrNull()
         if (login == null) {
-            android.util.Log.d(AUTOFILL_TAG, "no stored login for $url")
+            // Deliberately not the URL: which origin has no saved login is
+            // exactly the question a log reader should not be able to ask.
+            trace("no stored login for this origin")
             return
         }
         val values = android.util.SparseArray<CharSequence>()
@@ -862,11 +890,15 @@ class MainActivity : AppCompatActivity() {
         nodes.firstOrNull { isUsernameField(it) }?.let { userNode ->
             autofillSession.dataFor(userNode)?.let { values.put(it.id, login.username) }
         }
-        android.util.Log.d(AUTOFILL_TAG, "filling ${values.size()} field(s)")
+        trace("filling ${values.size()} field(s)")
         if (values.size() > 0) {
             runOnUiThread {
                 runCatching { autofillSession.autofill(values) }
-                    .onFailure { android.util.Log.w(AUTOFILL_TAG, "autofill failed", it) }
+                    .onFailure {
+                        if (BuildConfig.DEBUG) {
+                            android.util.Log.w(AUTOFILL_TAG, "autofill failed", it)
+                        }
+                    }
             }
         }
     }
@@ -990,7 +1022,7 @@ class MainActivity : AppCompatActivity() {
             // it has to be re-pointed at the new instance. The service-worker
             // delegate was missing here: it kept calling createUnopenedPopup on
             // the destroyed activity, whose stores were stale.
-            runtime?.setWebNotificationDelegate(BrowserNotificationDelegate(this))
+            runtime?.setWebNotificationDelegate(webNotificationDelegate)
             runtime?.setAutocompleteStorageDelegate(BrowserAutocompleteDelegate(loginStore))
             runtime?.setServiceWorkerDelegate(serviceWorkerDelegate)
         }
@@ -1000,6 +1032,7 @@ class MainActivity : AppCompatActivity() {
         homeOverlay = findViewById(R.id.home_overlay)
         progress = findViewById(R.id.progress)
         addressText = findViewById(R.id.address_text)
+        securityIndicator = findViewById(R.id.security_indicator)
         tabsCount = findViewById(R.id.tabs_count)
         geckoView.setAutofillEnabled(true)
         findViewById<View>(R.id.btn_pip).setOnClickListener { enterPictureInPicture() }
@@ -1013,11 +1046,29 @@ class MainActivity : AppCompatActivity() {
         // another app, say -- that overlay is never shown, so the work is pure
         // waste in front of the first page render. selectTab renders the
         // shortcuts when it actually reveals the overlay instead.
-        addressText.setOnEditorActionListener { v, _, _ ->
-            // Editing has to end BEFORE navigate(), or the result loads behind a
+        addressText.setOnEditorActionListener { v, actionId, _ ->
+            // Only the action keys navigate. Returning true unconditionally
+            // swallowed every editor action the IME sends, including the ones
+            // that are not a request to go anywhere.
+            val isGo = actionId == android.view.inputmethod.EditorInfo.IME_ACTION_UNSPECIFIED ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NONE ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEND ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_NEXT ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            if (!isGo) return@setOnEditorActionListener false
+            // Read the text BEFORE editing ends. leaveEditing() clears focus,
+            // and the focus listener calls updateAddress(), which puts the tab's
+            // title back into the field -- so reading afterwards navigated to
+            // the previous page's title and threw away the query. Measured: with
+            // "zzqqxxtest" typed over the IANA tab, Go searched for
+            // "Internet Assigned Numbers Authority".
+            val query = v.text?.toString().orEmpty()
+            // Editing ends before navigate() so the result never loads behind a
             // keyboard the user has just dismissed.
             leaveEditing()
-            navigate((v as EditText).text.toString())
+            navigate(query)
             true
         }
         addressText.setOnFocusChangeListener { _, focused ->
@@ -1180,15 +1231,22 @@ class MainActivity : AppCompatActivity() {
         val restored = sessionStore.tabs()
         if (restored.isEmpty()) return
         val created = restored.map { saved ->
-            newTab(isPrivate = false, select = false).also { tab ->
+            newTab(isPrivate = false, select = false, id = saved.id).also { tab ->
                 tab.isHome = false
                 tab.url = saved.url
                 tab.title = saved.title
                 tab.lastActiveAt = saved.lastActiveAt
             }
         }
-        val activeUrl = sessionStore.activeUrl()
-        val selected = created.firstOrNull { it.url == activeUrl } ?: created.first()
+        // The current tab is matched on the stable id the store saved. It used
+        // to be matched on URL, which picked the wrong tab whenever two of them
+        // showed the same page -- and that is not a rare case: duplicate tabs,
+        // a redirect, and two windows onto one site all produce it.
+        val savedActiveId = sessionStore.activeId()
+        val selected = created.firstOrNull { it.id == savedActiveId }
+            // Schema 1 wrote no id, only a URL.
+            ?: created.firstOrNull { it.url == sessionStore.activeUrl() }
+            ?: created.first()
         // Only the tab in front loads now; the rest load on first selection
         // (selectTab honors needsLoad). A cold start with many tabs used to
         // fire every navigation at once before the first page could render.
@@ -1204,9 +1262,11 @@ class MainActivity : AppCompatActivity() {
                 !it.isPrivate && !it.isHome && !it.isError && it.url.isNotBlank() &&
                     !it.url.startsWith("data:") && it.url != "about:blank"
             }.map {
-                RestorableTab(it.url, it.title, it.lastActiveAt)
+                RestorableTab(it.id, it.url, it.title, it.lastActiveAt)
             },
-            activeTab()?.takeIf { !it.isPrivate && !it.isHome }?.url,
+            // Only a normal tab can be restored, so an active private tab or the
+            // start page must not write an id nothing will ever match.
+            activeTab()?.takeIf { !it.isPrivate && !it.isHome && !it.isError }?.id,
         )
     }
 
@@ -1217,6 +1277,15 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         saveTabState()
+        // An immersive web app hides the address bar, the tab tray and the menu
+        // on purpose. That makes the activity unkillable by swipe-away in the
+        // recents switcher, which strands the user on a fullscreen page with no
+        // visible way back into the browser other than a notification tap. The
+        // windows themselves are left alone -- this is the chrome, not the page.
+        if (immersiveMode) {
+            chromeRevealed = true
+            applyChromeVisibility()
+        }
         super.onPause()
     }
 
@@ -1239,12 +1308,41 @@ class MainActivity : AppCompatActivity() {
     @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+        // These constants are NOT ordered the way the arithmetic reads:
+        //   TRIM_MEMORY_RUNNING_MODERATE  5   foreground, own footprint rising
+        //   TRIM_MEMORY_RUNNING_LOW      10   foreground, low memory
+        //   TRIM_MEMORY_RUNNING_CRITICAL 15   foreground, critical
+        //   TRIM_MEMORY_UI_HIDDEN        20   the user left; says nothing about memory
+        //   TRIM_MEMORY_BACKGROUND       40   backgrounded, reclaim candidate
+        //   TRIM_MEMORY_MODERATE         60   backgrounded, strong reclaim candidate
+        //   TRIM_MEMORY_COMPLETE         80   about to be killed
+        //
+        // Two different responses, because the two signals mean different things.
+        //
+        // Dropping cache is cheap and invisible, so it answers every signal that
+        // carries any memory implication at all.
+        //
+        // Closing a tab's GeckoSession is destructive and visible: the page loses
+        // its scroll position, its form contents and its JS state, and the user
+        // gets the top of the article again. That answer is reserved for signals
+        // where the process is genuinely in trouble.
+        //
+        // UI_HIDDEN and BACKGROUND are deliberately NOT in the destructive set.
+        // Both are routine lifecycle deliveries, not pressure: measured on a vivo
+        // I2214 (Android 16), pressing HOME produced level=20 followed by
+        // level=40, and every background session past the two most recent was
+        // torn down and rebuilt from its URL. Treating either as pressure means
+        // the browser silently discards page state every time the user switches
+        // apps. MODERATE and COMPLETE are kept because those arrive when the
+        // system is about to reclaim the process anyway.
+        val cacheable = level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW
+        val destructive = level == android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_MODERATE ||
+            level == android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE
+        if (cacheable) {
             runCatching { runtime?.storageController?.clearData(StorageController.ClearFlags.ALL_CACHES) }
         }
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL ||
-            level == android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE
-        ) {
+        if (destructive) {
             suspendBackgroundTabs()
         }
     }
@@ -1264,17 +1362,27 @@ class MainActivity : AppCompatActivity() {
     private fun suspendBackgroundTabs(keep: Int = 3) {
         if (!::geckoView.isInitialized) return
         val suspendable = tabs.filter {
-            it.id != activeId && !it.isHome && !it.isPrivate && !it.suspended && it.url.isNotBlank()
+            it.id != activeId && !it.isHome && !it.suspended && it.url.isNotBlank()
         }.sortedByDescending { it.lastActiveAt }
         // Active tab always survives; keep-1 most recent background tabs join
         // it. The old arithmetic (budget = size - keep) closed almost nothing
         // on a critical trim with a normal tab count, which is exactly when
         // memory has to be freed.
         val survivors = suspendable.take((keep - 1).coerceAtLeast(0)).map { it.id }.toSet()
-        suspendable.filter { it.id !in survivors }.forEach { tab ->
+        val victims = suspendable.filter { it.id !in survivors }
+        victims.forEach { tab ->
             runCatching { tab.session.close() }
             tab.suspended = true
         }
+        // Private tabs are no longer excluded. Suspending one closes its
+        // session, which is the strongest thing that can happen to private
+        // state, so it was skipped -- and that meant a user with a wall of
+        // private tabs open got no memory relief at all, since the tabs holding
+        // the memory were precisely the ones left alone. Closing the session is
+        // what discards private data, so suspending is compatible with the
+        // privacy promise: the URL stays in the tab so it can be revived, and
+        // it was already in the tab's own fields before this ran. Private tabs
+        // are never persisted, so nothing reaches disk either way.
         saveTabState()
     }
 
@@ -1282,6 +1390,12 @@ class MainActivity : AppCompatActivity() {
         if (!tab.suspended) return
         tab.suspended = false
         tab.session = createSession(isPrivate = tab.isPrivate)
+        // The state this tab had before it was suspended is gone; only the URL
+        // survives. That is the deliberate trade documented on
+        // suspendBackgroundTabs, and it applies to private tabs too now.
+        tab.canGoBack = false
+        tab.canGoForward = false
+        tab.isLoading = false
         if (tab.url.isNotBlank()) tab.session.loadUri(tab.url)
     }
 
@@ -1354,7 +1468,7 @@ class MainActivity : AppCompatActivity() {
         val rt = GeckoRuntime.create(this, buildRuntimeSettings())
         rt.settings.cookieBehaviorOptInPartitioning = true
         rt.setAutocompleteStorageDelegate(BrowserAutocompleteDelegate(loginStore))
-        rt.setWebNotificationDelegate(BrowserNotificationDelegate(this))
+        rt.setWebNotificationDelegate(webNotificationDelegate)
         rt.setServiceWorkerDelegate(serviceWorkerDelegate)
         applyEnginePreferences()
         applyPrivacyOverrides(rt)
@@ -1521,9 +1635,19 @@ class MainActivity : AppCompatActivity() {
         return popup.session
     }
 
-    private fun newTab(isPrivate: Boolean, select: Boolean): Tab {
+    /**
+     * Mints a tab and its session.
+     *
+     * [id] is supplied only when restoring, so a tab comes back with the
+     * identity it had before process death. Live tabs leave it null and get a
+     * fresh one from the counter, which is then advanced past any restored id
+     * so a later tab can never collide with one that was brought back.
+     */
+    private fun newTab(isPrivate: Boolean, select: Boolean, id: Long? = null): Tab {
         applyCloseTabsPolicy()
-        val tab = Tab(id = nextId++, session = createSession(isPrivate), isPrivate = isPrivate)
+        val tabId = id ?: nextId++
+        if (tabId >= nextId) nextId = tabId + 1
+        val tab = Tab(id = tabId, session = createSession(isPrivate), isPrivate = isPrivate)
         tabs.add(tab)
         if (select) {
             selectTab(tab.id)
@@ -1543,7 +1667,10 @@ class MainActivity : AppCompatActivity() {
         for (tab in stale) {
             if (tab.id == activeId) continue
             tabs.remove(tab)
-            tab.session.close()
+            // runCatching because this runs at the top of newTab: a session
+            // already closed by a trim or a crash throws here, and that must not
+            // abort the creation of the tab the user actually asked for.
+            runCatching { tab.session.close() }
         }
     }
 
@@ -1582,7 +1709,20 @@ class MainActivity : AppCompatActivity() {
                 candidate.session.setFocused(selected)
             }
         }
+        // Fullscreen belongs to the session that asked for it. Gecko sends
+        // onFullScreen(false) on its own when a session closes, but a tab switch
+        // does not, so the field kept naming a session that was no longer in
+        // front and the chrome stayed hidden over an ordinary page.
+        if (fullscreenSession != null && fullscreenSession !== tab.session) {
+            fullscreenSession = null
+            chromeRevealed = false
+        }
         geckoView.setSession(tab.session)
+        // Re-applied on every switch, not only on a location change. Leaving a
+        // web app for an ordinary tab used to leave immersiveMode set, which
+        // hides the address bar, the tray and the menu over the tab that came
+        // after it -- the chrome belonged to the tab that had gone.
+        applyWebAppDisplayMode()
         val home = tab.isHome
         homeOverlay.visibility = if (home) View.VISIBLE else View.GONE
         geckoView.visibility = if (home) View.GONE else View.VISIBLE
@@ -1606,21 +1746,41 @@ class MainActivity : AppCompatActivity() {
         if (!removed.isPrivate && !removed.isHome && removed.url.isNotBlank()) {
             sessionStore.addClosed(removed.url, removed.title)
         }
-        if (id == activeId && tabs.size > 1) {
-            selectTab(tabs[if (index == tabs.size - 1) index - 1 else index + 1].id)
+        // Taken out of the list before anything else happens to the selection.
+        // It used to stay in while selectTab ran, so the loop in selectTab
+        // reached the doomed tab, and the neighbour it picked could be the tab
+        // being closed on the next tap. Removal also means any callback still in
+        // flight from the closed session resolves tabFor() to null and is
+        // dropped, which is what stops a late onTitleChange reviving it.
+        tabs.removeAt(index)
+        // A manifest is scoped to the tab that shipped it. Clearing it here
+        // stops a closed web-app tab's display mode from applying to whatever
+        // is selected next, which is the same failure as the fullscreen field
+        // one line below.
+        if (webAppManifestTabId == id) {
+            webAppManifest = null
+            webAppManifestTabId = -1L
+            webAppUrl = null
+            webAppIconUrl = null
         }
-        // True when the replacement below is the only tab left standing, so
-        // there is no real browsing session that a wipe could disturb.
-        val emptied = tabs.size == 1
-        if (emptied) {
-            // The last tab is going, so something has to take its place. That is
-            // a normal tab even when the one being closed was private: closing
-            // the last private tab is how private browsing is left, and quietly
-            // replacing it with another private tab would make it impossible to
-            // get out of by closing tabs.
-            newTab(isPrivate = false, select = true)
+        if (fullscreenSession === removed.session) {
+            fullscreenSession = null
+            chromeRevealed = false
         }
-        tabs.removeAt(tabs.indexOfFirst { it.id == id })
+        if (id == activeId) {
+            if (tabs.isNotEmpty()) {
+                // Chrome's rule: the tab to the right, or the one to the left if
+                // the closed tab was last.
+                selectTab(tabs[if (index >= tabs.size) tabs.size - 1 else index].id)
+            } else {
+                // The last tab is going, so something has to take its place. That
+                // is a normal tab even when the one being closed was private:
+                // closing the last private tab is how private browsing is left,
+                // and quietly replacing it with another private tab would make it
+                // impossible to get out of by closing tabs.
+                newTab(isPrivate = false, select = true)
+            }
+        }
         removed.session.close()
         updateBadge()
         // Closing the session is what discards what the private tab held. The
@@ -1628,6 +1788,9 @@ class MainActivity : AppCompatActivity() {
         // for the emptied case: there the user closed a tab, and answering that
         // by wiping their cookies and logging them out of everything would be a
         // surprise nobody asked for.
+        // True when no real browsing session survived the close, so there is
+        // nothing here a broad wipe could disturb.
+        val emptied = tabs.none { !it.isHome }
         if (removed.isPrivate && !emptied && tabs.none { it.isPrivate }) sanitize(keepPage = true)
         tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
     }
@@ -1808,6 +1971,47 @@ class MainActivity : AppCompatActivity() {
             if (!addressText.hasFocus()) addressText.setText(tab.title.ifEmpty { tab.url })
             addressText.hint = tab.url
         }
+        updateSecurityIndicator(tab)
+    }
+
+    /**
+     * The connection state of the tab in front, from the engine's own report.
+     *
+     * `onSecurityChange` sets `isSecure` and this is the only thing that reads
+     * it, which is why the indicator cannot be wrong: there is no URL sniffing
+     * and no https:// check on the text. The state a tab starts with is "not yet
+     * reported", so the indicator is hidden until the engine has actually said
+     * something. Showing a padlock on the start page would claim a connection
+     * that does not exist.
+     */
+    private fun updateSecurityIndicator(tab: Tab?) {
+        if (!::securityIndicator.isInitialized) return
+        // Secure-window flag, scoped to private browsing rather than applied
+        // always. A private tab's content is what should not end up in the
+        // recents thumbnail or a screenshot, and doing it for every tab would
+        // disable screenshots and screen sharing for ordinary browsing, which is
+        // not the product's decision to make. Toggled per tab in selectTab, so
+        // leaving a private tab restores the ability to capture the screen.
+        applyPrivateWindowProtection(tab?.isPrivate == true)
+        if (tab == null || tab.isHome || isBlank(tab.url)) {
+            securityIndicator.visibility = View.GONE
+            return
+        }
+        securityIndicator.setImageResource(
+            if (tab.isSecure) R.drawable.ic_https else R.drawable.ic_http,
+        )
+        // The padlock itself is decorative for a screen reader; the state is
+        // announced through the field, where the user is already looking.
+        securityIndicator.imageTintList = android.content.res.ColorStateList.valueOf(
+            resources.getColor(
+                if (tab.isSecure) R.color.librewolf_accent else R.color.librewolf_grey,
+                theme,
+            ),
+        )
+        securityIndicator.contentDescription = getString(
+            if (tab.isSecure) R.string.connection_secure else R.string.connection_insecure,
+        )
+        securityIndicator.visibility = View.VISIBLE
     }
 
     private fun openUrlInNewTab(url: String, select: Boolean) {
@@ -2055,23 +2259,117 @@ class MainActivity : AppCompatActivity() {
 
     // ---- external apps / downloads ----
 
+    /**
+     * Hands a link off to whatever app claims it.
+     *
+     * The `intent:` form is the dangerous one. `Intent.parseUri` will happily
+     * build an arbitrary Intent out of a string a webpage controls, including an
+     * explicit `component=`, a `package=`, a `Selector`, and `S.*` extras that
+     * carry `FLAG_GRANT_READ_URI_PERMISSION`. Launching that verbatim lets a page
+     * start an activity inside another app directly, or hand a file it can read
+     * to an app that has no permission for it. So the parsed intent is treated as
+     * untrusted and stripped down to what a plain link actually needs: an action
+     * and a data URI.
+     *
+     * Nothing here weakens browsing. A site that sends a real `intent:` with a
+     * normal VIEW action and an http(s) target still opens.
+     */
     private fun openExternalUri(uri: String) {
         if (!store.openLinksInApps) return
         // An empty or unparsable URI would launch a content-less VIEW intent and
         // fail with an opaque system error.
         if (uri.isBlank() || Uri.parse(uri).scheme.isNullOrBlank()) return
-        try {
-            val intent = if (uri.startsWith("intent:", ignoreCase = true)) {
-                Intent.parseUri(uri, Intent.URI_INTENT_SCHEME)
+        val intent = try {
+            if (uri.startsWith("intent:", ignoreCase = true)) {
+                hardenWebIntent(Intent.parseUri(uri, Intent.URI_INTENT_SCHEME))
             } else {
                 Intent(Intent.ACTION_VIEW, Uri.parse(uri))
             }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        } catch (_: Exception) {
+            // A malformed intent: string is not something to hand to the system.
+            Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
+            return
+        } ?: return
+        // The same check applies to a plain link: the scheme is whatever the page
+        // asked for, and an unknown one simply has no handler.
+        val target = intent.data
+        if (target == null || target.scheme.isNullOrBlank()) return
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
             startActivity(intent)
         } catch (_: Exception) {
             Toast.makeText(this, getString(R.string.not_available), Toast.LENGTH_SHORT).show()
         }
     }
+
+    /**
+     * Strips everything from a web-supplied intent that is not part of saying
+     * "open this link".
+     *
+     * Removed: an explicit component or package, a Selector (which can name a
+     * private, unexported activity inside another app), every
+     * `FLAG_GRANT_*` bit (a page must not mint a permission grant for itself),
+     * and any extra whose key is one Gecko never needed. What survives is the
+     * action and the data URI, which is what the intent: scheme is for.
+     */
+    private fun hardenWebIntent(parsed: Intent): Intent? {
+        // A component or selector means the page is aiming at a specific activity
+        // rather than offering a link. Refused outright.
+        if (parsed.component != null || parsed.selector != null) return null
+        val target = parsed.data
+        if (target == null || target.scheme.isNullOrBlank()) return null
+        // content:// would need a URI grant we are not going to mint on a page's
+        // behalf, and file:// is not something a link can legitimately carry to
+        // another app. Both are refused; an ordinary http/https/mailto/tel/market
+        // link is untouched.
+        if (target.scheme?.lowercase() in REFUSED_WEB_INTENT_SCHEMES) return null
+
+        val clean = Intent(parsed.action ?: Intent.ACTION_VIEW, target)
+        // Grant flags would hand the receiving app access the browser never
+        // agreed to. Clearing them is the point of the allow-list: anything not
+        // named in ALLOWED_WEB_INTENT_FLAGS is dropped, including flags a future
+        // Android adds.
+        clean.flags = parsed.flags and ALLOWED_WEB_INTENT_FLAGS
+        return clean
+    }
+
+    /** Schemes a web page has no business handing to another app. */
+    private val REFUSED_WEB_INTENT_SCHEMES = setOf("content", "file", "android_app")
+
+    /**
+     * Turns the secure-window flag on or off with private browsing.
+     *
+     * FLAG_SECURE is what keeps a private page out of the task switcher
+     * thumbnail, out of screenshots and out of screen sharing. It is scoped to
+     * the private case on purpose: applied unconditionally it would remove
+     * screenshots and casting from normal browsing, which is a product decision
+     * this browser has not made.
+     */
+    private fun applyPrivateWindowProtection(private: Boolean) {
+        if (private == secureWindowApplied) return
+        secureWindowApplied = private
+        if (private) {
+            window.setFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+                android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            )
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    /** Whether FLAG_SECURE is currently on. Guards against redundant flag churn. */
+    private var secureWindowApplied = false
+
+    /**
+     * Flags a web-supplied intent may keep. Deliberately a short allow-list:
+     * only the task-affinity bits that make a link open sensibly, and never a
+     * grant or a component-selection flag.
+     */
+    private val ALLOWED_WEB_INTENT_FLAGS =
+        Intent.FLAG_ACTIVITY_NEW_TASK or
+            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            Intent.FLAG_ACTIVITY_SINGLE_TOP
 
     private fun enqueueDownload(
         url: String,
@@ -2430,6 +2728,22 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /**
+     * Drops every tab carrying [ids].
+     *
+     * Used by the "Close multiple" path in the tray, where the selection can
+     * include the tab in front. One closeTab call per id means the active one
+     * goes through the normal neighbour-selection path rather than leaving
+     * activeId pointing at a tab that no longer exists.
+     */
+    private fun closeTabsByIds(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        // The active tab last, so the tab the user was reading survives until
+        // the background ones are gone and the selection has somewhere to land.
+        val ordered = ids.sortedBy { if (it == activeId) 1 else 0 }
+        for (id in ordered) closeTab(id)
+    }
+
     private fun closeTabIds(ids: List<Long>) {
         if (ids.isEmpty()) return
         // Closing several at once is easy to do by accident and impossible to
@@ -2446,9 +2760,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun reallyCloseTabIds(ids: List<Long>) {
-        val survivors = tabs.filter { it.id !in ids }
-        if (survivors.isNotEmpty() && activeId in ids) selectTab(survivors.first().id)
-        ids.forEach { id -> if (tabs.any { it.id == id }) closeTab(id) }
+        // Each tab goes through closeTab, which already handles "this was the tab
+        // in front" by selecting a neighbour. This used to select survivors.first()
+        // up front and then close them one by one, so the user was thrown to the
+        // oldest survivor rather than to the tab next to the one they closed.
+        closeTabsByIds(ids)
         saveTabState()
     }
 

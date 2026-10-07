@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Device-to-device transfer and cloud backup are both switched off.
+
+  android:allowBackup="false" alone is not enough. From Android 12 the
+  device-to-device path is governed by android:dataExtractionRules, and a
+  manufacturer transfer can move the app's data even when allowBackup is false.
+  Everything is excluded explicitly here rather than relying on the absence of a
+  rule.
+
+  What is in that data, and why none of it should travel:
+    - the password vault (AES-GCM key lives in the Android Keystore and is NOT
+      backed up, so a restored copy would be undecryptable anyway)
+    - browsing history, bookmarks, downloads, site permissions
+    - saved sessions
+    - Gecko's own profile: cookies, cache, localStorage, IndexedDB
+
+  Private browsing has nothing here to exclude: it is never written to disk.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+        <exclude domain="cache" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+        <exclude domain="cache" />
+    </device-transfer>
+</data-extraction-rules>

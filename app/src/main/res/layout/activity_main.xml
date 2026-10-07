@@ -163,6 +163,23 @@
                     android:src="@drawable/ic_chevron" />
             </LinearLayout>
 
+            <!-- Connection state, from the engine's onSecurityChange and nothing
+                 else. GONE unless a page has reported its security state, so the
+                 bar carries no icon at all on the start page rather than showing
+                 an idle "insecure" that would be a lie.
+
+                 This one is deliberately NOT importantForAccessibility="no".
+                 The contentDescription set in updateSecurityIndicator is the
+                 only way a screen-reader user learns whether the connection is
+                 secure, and marking the view as not-accessible hides it from the
+                 accessibility tree along with its description. -->
+            <ImageView
+                android:id="@+id/security_indicator"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_marginEnd="2dp"
+                android:visibility="gone" />
+
             <EditText
                 android:id="@+id/address_text"
                 android:layout_width="0dp"

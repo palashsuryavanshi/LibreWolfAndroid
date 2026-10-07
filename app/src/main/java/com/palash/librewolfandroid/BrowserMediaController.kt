@@ -41,6 +41,7 @@ class BrowserMediaController(private val activity: MainActivity) {
 
     private var platformSession: MediaSession? = null
     private var geckoSession: GeckoMediaSession? = null
+
     private val audioManager: AudioManager = activity.getSystemService(AudioManager::class.java)
     private val main = Handler(Looper.getMainLooper())
 
@@ -108,6 +109,12 @@ class BrowserMediaController(private val activity: MainActivity) {
     val delegate = object : GeckoMediaSession.Delegate {
         override fun onActivated(session: GeckoSession, media: GeckoMediaSession) {
             geckoSession = media
+            // Media keeps playing when the tab is backgrounded, so the transport
+            // notification outlives the tab and is visible with the screen off.
+            // Whether that is a private tab decides how much it may show.
+            activeIsPrivate = runCatching {
+                session.settings.usePrivateMode
+            }.getOrDefault(false)
             state = PlaybackState.STATE_PAUSED
             platformSession = MediaSession(activity, "LibreWolfMedia").apply {
                 setCallback(object : MediaSession.Callback() {
@@ -364,6 +371,17 @@ class BrowserMediaController(private val activity: MainActivity) {
     companion object {
         private const val ARTWORK_SIZE = 512
 
+        /**
+         * True when the media currently playing came from a private tab.
+         *
+         * Read from the session in onActivated rather than tracked from the tab
+         * list, because media outlives the tab it started in and a tab can be
+         * closed while it keeps playing. It lives beside the snapshot because
+         * the transport notification is built from the companion.
+         */
+        @Volatile
+        private var activeIsPrivate = false
+
         @Volatile
         private var snapshot = Snapshot()
 
@@ -416,22 +434,42 @@ class BrowserMediaController(private val activity: MainActivity) {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             val playing = snapshot.state == PlaybackState.STATE_PLAYING
+            // A transport notification is surfaced by the lock screen and the
+            // system media controls. VISIBILITY_PUBLIC publishes the track title
+            // and artist, which for a private tab is exactly what the user went
+            // private to avoid showing. Private media therefore drops to
+            // VISIBILITY_PRIVATE and names nothing on the lock screen.
+            val privateMedia = activeIsPrivate
             val builder = Notification.Builder(context, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_notification)
-                .setContentTitle(snapshot.title.ifBlank { context.getString(R.string.app_name) })
+                .setContentTitle(
+                    if (privateMedia) {
+                        context.getString(R.string.private_media_playing)
+                    } else {
+                        snapshot.title.ifBlank { context.getString(R.string.app_name) }
+                    },
+                )
                 .setContentText(
-                    listOf(snapshot.artist, snapshot.output).filter { it.isNotBlank() }
-                        .joinToString(" · ")
-                        .ifBlank { context.getString(R.string.media_playing) },
+                    if (privateMedia) {
+                        context.getString(R.string.private_media_playing)
+                    } else {
+                        listOf(snapshot.artist, snapshot.output).filter { it.isNotBlank() }
+                            .joinToString(" · ")
+                            .ifBlank { context.getString(R.string.media_playing) }
+                    },
                 )
                 .setContentIntent(openIntent)
                 .setOngoing(playing)
                 .setOnlyAlertOnce(true)
                 .setShowWhen(false)
                 .setCategory(Notification.CATEGORY_TRANSPORT)
-                .setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setVisibility(
+                    if (privateMedia) Notification.VISIBILITY_PRIVATE
+                    else Notification.VISIBILITY_PUBLIC,
+                )
                 .setStyle(Notification.MediaStyle().setMediaSession(token))
-            snapshot.artwork?.let { builder.setLargeIcon(it) }
+            // Artwork is a picture of what is being played, which is the same leak.
+            if (!privateMedia) snapshot.artwork?.let { builder.setLargeIcon(it) }
             builder.addAction(
                 Notification.Action.Builder(
                     Icon.createWithResource(

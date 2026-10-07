@@ -296,7 +296,13 @@ class BrowserPromptDelegate(
         result: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>,
     ) {
         try {
-            val file = java.io.File.createTempFile("librewolf_upload_", ".jpg", activity.cacheDir)
+            // Its own subdirectory, matching the one path file_paths.xml exposes.
+            // It used to be written straight into cacheDir, which meant the
+            // FileProvider's camera_uploads mapping had to cover the whole cache
+            // directory -- and that directory also holds Gecko's HTTP cache and
+            // session files, so any app we handed a URI to could read those.
+            val dir = java.io.File(activity.cacheDir, "uploads").apply { mkdirs() }
+            val file = java.io.File.createTempFile("librewolf_upload_", ".jpg", dir)
             val uri = androidx.core.content.FileProvider.getUriForFile(
                 activity,
                 "${activity.packageName}.fileprovider",

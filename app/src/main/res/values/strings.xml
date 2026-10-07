@@ -2,6 +2,15 @@
 <resources>
     <string name="app_name">LibreWolf</string>
     <string name="url_hint">Search or enter address</string>
+
+    <!-- Address-bar connection state. Both are read from the engine's
+         onSecurityChange callback; neither is inferred from the URL text. -->
+    <string name="connection_secure">Secure connection</string>
+    <string name="connection_insecure">Connection is not secure</string>
+
+    <!-- Transport notification shown when a private tab is playing media. The
+         track and its artist are deliberately not named. -->
+    <string name="private_media_playing">Private media</string>
     <string name="go">Go</string>
     <plurals name="trackers_blocked">
         <item quantity="one">%1$d tracker blocked</item>

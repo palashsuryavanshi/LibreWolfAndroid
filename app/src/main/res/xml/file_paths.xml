@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Deliberately narrow.
+
+  camera_uploads used to be the whole cache directory. That directory also holds
+  Gecko's HTTP cache, its temporary download bodies and the session files it
+  writes while running, so any app we handed a content:// URI to could have
+  read all of it. The camera capture is the only thing that ever needed to be
+  handed out, and it now goes through its own subdirectory.
+
+  downloads is the user's Download folder, which is where files land when no
+  folder was chosen in Settings. The download folder itself is user-selectable
+  through the system Files picker and that tree is shared by the system, not by
+  this provider.
+-->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <cache-path name="camera_uploads" path="." />
+    <cache-path name="camera_uploads" path="uploads/" />
     <external-path name="downloads" path="Download/" />
 </paths>
