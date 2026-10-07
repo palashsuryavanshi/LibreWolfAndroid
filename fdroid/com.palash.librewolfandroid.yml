@@ -1,0 +1,105 @@
+Categories:
+  - Browser
+  - Security
+
+License: MPL-2.0
+SourceCode: https://github.com/palashsuryavanshi/LibreWolfAndroid
+Changelog: https://github.com/palashsuryavanshi/LibreWolfAndroid/releases
+IssueTracker: https://github.com/palashsuryavanshi/LibreWolfAndroid/issues
+
+RepoType: git
+Repo: https://github.com/palashsuryavanshi/LibreWolfAndroid.git
+
+# No AntiFeatures. Google Play Services are excluded from these builds (see
+# below), and none of F-Droid's ten apply: Ads, DisabledAlgorithm, KnownVuln,
+# NonFreeAdd, NonFreeAssets, NonFreeDep, NonFreeNet, NoSourceSince,
+# TetheredNet, Tracking.
+#
+# No AllowedAPKSigningKeys: these builds are unsigned and F-Droid signs them
+# with its own key.
+
+MaintainerNotes: |
+  <h3>Why Play Services are excluded, and what it costs</h3>
+
+  <p>GeckoView 147 declares <code>com.google.android.gms:play-services-fido</code>
+  as a <b>non-optional runtime dependency</b> in Mozilla's own POM, so every
+  GeckoView app inherits Play Services. F-Droid's inclusion policy forbids
+  them, so these builds exclude <code>com.google.android.gms</code>. Verified
+  by class count, not assumed: 18 <code>com.google.android.gms</code> classes
+  in the default build's dex, <b>0</b> in these, and no GMS component in the
+  APK manifest.</p>
+
+  <p><b>The cost:</b> GeckoView implements WebAuthn on the GMS FIDO2 API, so
+  <b>passkey sign-in does not work in these builds</b>. Ordinary browsing and
+  ordinary logins were verified working on hardware (Pixel 9a, Android 17):
+  the GMS-free build launches, reaches MOZGLUE_READY with no
+  NoClassDefFoundError, and loads and renders HTTPS pages. A real passkey
+  sign-in was <i>not</i> driven end to end, so how that path fails is unknown.
+  The Passkeys settings screen states the limitation on these builds rather
+  than implying it works.</p>
+
+  <h3>Please review: branding and trademark</h3>
+
+  <p>This app reuses LibreWolf's name and logo, while its own README states
+  that it is "not affiliated with, endorsed by, or supported by the LibreWolf
+  project or Mozilla". F-Droid's policy requires that apps not infringe third
+  party rights including trademarks, and that they hold the necessary
+  permission. <b>The submitter has not supplied evidence of trademark
+  permission.</b> Flagging this explicitly rather than hoping it is not
+  noticed; it may need a distinct name and icon before inclusion.</p>
+
+  <h3>Maven repository that is not on the trusted list</h3>
+
+  <p>GeckoView resolves from <code>https://maven.mozilla.org/maven2/</code>,
+  declared in <code>settings.gradle</code>. That host is not among the
+  repositories F-Droid trusts (Maven Central, Google Maven, OSS Sonatype, OSS
+  JFrog, JitPack, Clojars). It cannot simply be removed:
+  <code>org.mozilla.geckoview:geckoview</code> was checked directly and is
+  <b>not</b> published to Maven Central. The rationale is that it is Mozilla's
+  official FOSS release artifact under MPL-2.0, but maintainers may want to
+  look at it.</p>
+
+  <h3>Other notes</h3>
+
+  <ul>
+    <li>The application ID does not derive from a domain. This is advisory
+    under the policy, and changing it now would orphan existing installs.</li>
+    <li>Each ABI gets its own version code (100 * %c + 1/2/3) because the
+    client must be able to order per-architecture entries. Three explicit
+    build blocks are used rather than VercodeOperation, which generates
+    additional blocks by copying the one supplied and so would give every
+    architecture the same <code>fdroidAbi</code>. Adding a release therefore
+    needs three blocks; UpdateCheckMode is deliberately left unset so this is
+    done by hand.</li>
+    <li><code>buildToolsVersion</code> is deliberately unpinned: pinning one
+    revision breaks the build on any machine lacking exactly that revision.</li>
+    <li>Upstream also publishes a signed release on GitHub
+    (<code>v1.2beta3</code>) which <i>does</i> include Play Services and
+    supports passkeys. These builds are the same codebase built without them,
+    versioned <code>-fdroid</code> so the two are distinguishable.</li>
+  </ul>
+
+Builds:
+  - versionName: 1.2beta3-fdroid
+    versionCode: 15600501
+    commit: '0fb3b6a7bfed7dd33600a18e60b73f79e5e3f23f'
+    timeout: 5400
+    gradle: yes
+    gradleprops: fdroidBuild=true,fdroidAbi=armeabi-v7a,currentVersionCode=15600501,fdroidVersionName=1.2beta3-fdroid
+    output: app/build/outputs/apk/release/app-armeabi-v7a-release-unsigned.apk
+
+  - versionName: 1.2beta3-fdroid
+    versionCode: 15600502
+    commit: '0fb3b6a7bfed7dd33600a18e60b73f79e5e3f23f'
+    timeout: 5400
+    gradle: yes
+    gradleprops: fdroidBuild=true,fdroidAbi=arm64-v8a,currentVersionCode=15600502,fdroidVersionName=1.2beta3-fdroid
+    output: app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+
+  - versionName: 1.2beta3-fdroid
+    versionCode: 15600503
+    commit: '0fb3b6a7bfed7dd33600a18e60b73f79e5e3f23f'
+    timeout: 5400
+    gradle: yes
+    gradleprops: fdroidBuild=true,fdroidAbi=x86_64,currentVersionCode=15600503,fdroidVersionName=1.2beta3-fdroid
+    output: app/build/outputs/apk/release/app-x86_64-release-unsigned.apk
