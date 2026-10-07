@@ -31,12 +31,13 @@ android {
         minSdk 26
         targetSdk 34
         // versionCode must strictly increase for an update to install over an
-        // existing copy. The published v1.1.1 is at 156003, so this line starts
-        // at 156004; reusing or lowering it would make this a downgrade, which
-        // Android refuses and for which the only remedy is an uninstall -- and an
-        // uninstall deletes the user's history, bookmarks, cookies and vault.
-        versionCode 156004
-        versionName '1.2beta2'
+        // existing copy. The published v1.1.1 is at 156003 and v1.2beta2 at
+        // 156004, so this line moves to 156005; reusing or lowering it would
+        // make this a downgrade, which Android refuses and for which the only
+        // remedy is an uninstall -- and an uninstall deletes the user's history,
+        // bookmarks, cookies and vault.
+        versionCode 156005
+        versionName '1.2beta3'
 
         // Mirrors source/version + source/release (desktop LibreWolf base). Kept
         // separate from versionName so About can show what this app is and what
@@ -49,12 +50,19 @@ android {
     // uncompressed for mmap). A single fat APK carried all three (~300 MB);
     // per-ABI splits give every device only its own engine, halving download
     // size with zero feature/quality loss.
+    //
+    // universalApk is on as well, so each release also carries one APK that runs
+    // on any of the three. That is not a convenience: it is the only artifact
+    // installable on a device whose ABI we do not ship, and sideloading guides
+    // for unofficial devices routinely assume a single download. It costs
+    // nothing to those who keep using the per-ABI files, and CI builds it
+    // alongside them rather than as a separate, hand-assembled step.
     splits {
         abi {
             enable true
             reset()
             include 'arm64-v8a', 'armeabi-v7a', 'x86_64'
-            universalApk false
+            universalApk true
         }
     }
 

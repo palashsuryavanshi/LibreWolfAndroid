@@ -33,20 +33,20 @@ Firefox Desktop — with the privacy posture of [LibreWolf](https://librewolf.ne
 
 ## Which build should I install?
 
-There is one: **[v1.2beta2](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta2)**,
+There is one: **[v1.2beta3](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta3)**,
 a full release signed with the project's release key.
 
 | | |
 |---|---|
-| Version | `1.2beta2`, `versionCode` **156004** |
+| Version | `1.2beta3`, `versionCode` **156005** |
 | Signed with | the project's **release key** — v2 and v3 signature schemes |
-| Installs over v1.0 or v1.1.1? | **Yes, in place, keeping your data.** Verified on hardware, not inferred. |
+| Installs over v1.0, v1.1.1 or v1.2beta2? | **Yes, in place, keeping your data.** Verified on hardware, not inferred. |
 | Android | 8.0 (API 26) or newer |
 
 ### ⚠️ Installing this is a one-way door
 
 Android only accepts a **higher** `versionCode` as an update. Once you install
-v1.2beta2, older builds cannot be installed over it — going back means an
+v1.2beta3, older builds cannot be installed over it — going back means an
 uninstall, and **an uninstall deletes your history, bookmarks, cookies, saved
 passwords and site permissions.**
 
@@ -427,7 +427,7 @@ CI produces unsigned artifacts and has no key.
 
 ## Download
 
-**[`v1.2beta2` release page](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta2)**
+**[`v1.2beta3` release page](https://github.com/palashsuryavanshi/LibreWolfAndroid/releases/tag/v1.2beta3)**
 
 Pick the split matching your device:
 
@@ -436,6 +436,11 @@ Pick the split matching your device:
 | `app-arm64-v8a-release.apk` | modern phones — nearly all of them | ~85 MB |
 | `app-armeabi-v7a-release.apk` | 32-bit ARM phones | ~82 MB |
 | `app-x86_64-release.apk` | emulators and x86 tablets | ~89 MB |
+| `app-universal-release.apk` | **any of the above** — one file for every device | ~223 MB |
+
+The universal APK is the fallback, not the default: it carries all three engines,
+so it is about two and a half times the download. Reach for it when you are not
+sure which ABI you have, or on a device we do not ship a split for.
 
 ```bash
 adb shell getprop ro.product.cpu.abi
@@ -449,11 +454,13 @@ SHA-256 of the assets in the current release:
 
 ```
 app-arm64-v8a-release.apk
-1bb0b8a439842ed11f2f786a8ec7d4387398ffd2a04129ee5acf4fee36ce814f
+584d3a9e176e94cc124b10a89e9cf8bb8a0c3bd690b331fbef7a7c540903d2eb
 app-armeabi-v7a-release.apk
-00585d40ec7ee3b473f6d24209d592d478e9c186979ce5e692312b331db71d8c
+9a890379df3ce46d23bf0b1eb47c1a80cda42a1de752c0cc5cf2f5e0af749aa1
 app-x86_64-release.apk
-f95155789ac77920fb3b0ee45046e94dc0c6a509a2d16360789fa57058043e89
+10997a9ba773b4330a9ac20683837f6ed1e0089152fe2c1041832924cdf40962
+app-universal-release.apk
+320fadce9c57020e45744344c1b8b930219e6f46a6aeb05e3b11b5e88ab2e91e
 ```
 
 ### Verify what you downloaded
@@ -464,11 +471,23 @@ vulnerability (CVE-2017-13156), and v3 is what makes key rotation possible if
 this key ever has to be replaced.
 
 To confirm an APK genuinely came from this project and was not repackaged, check
-the signer against the published fingerprint:
+the signer against the published fingerprint. Pass `--verbose`: without it a
+*successful* verify prints nothing but `Verifies`, and you cannot tell v2/v3 from
+v1-only.
 
 ```bash
-apksigner verify --print-certs app-arm64-v8a-release.apk
+apksigner verify --verbose --print-certs app-arm64-v8a-release.apk
 ```
+
+```
+Verifies
+Verified using v1 scheme (JAR signing): false
+Verified using v2 scheme (APK Signature Scheme v2): true
+Verified using v3 scheme (APK Signature Scheme v3): true
+Signer #1 certificate SHA-256 digest: 23129a1c...ec3c0907
+```
+
+Expect v2 and v3 true and v1 false.
 
 ```
 Signing certificate SHA-256:
@@ -487,6 +506,11 @@ verified on a Pixel 9a, not inferred: v1.1.1 was installed, a page was loaded to
 create history, the update was applied with `adb install -r`, the version code
 moved `156003` → `156004`, and the History screen still listed the page
 afterwards.
+
+v1.2beta3 keeps the same package name and the same key and raises the version
+code to `156005`, so it installs over v1.2beta2 the same way. Treat that as
+expected-but-untested until it is run on a device — see the caveat in the
+release notes.
 
 **`v1.2-beta1` is the exception.** It was a debug build signed with a different
 key, so an uninstall is unavoidable. See
@@ -521,8 +545,8 @@ commits were part of that history and no longer exist here.
 produced the APKs in the release. That was deliberate.
 
 The `v1.0` and `v1.1` tags were anchors pointing at the squashed root, not at the
-commits those APKs came from. Both releases have since been removed so that
-v1.2beta2 is the single current build; the exact source for them is preserved in
+commits those APKs came from. Both releases have since been removed so that the
+`1.2` line is the single current build; the exact source for them is preserved in
 a private archive, `palashsuryavanshi/LibreWolfAndroid-release-history`, on
 branches `release-history` (v1.1) and `v1.0-source` (v1.0).
 
@@ -586,9 +610,14 @@ APKs are ~85 MB rather than ~364 MB.
 | `app-arm64-v8a-release.apk` | modern phones, minified + signed | ~85 MB |
 | `app-armeabi-v7a-release.apk` | 32-bit ARM, minified + signed | ~82 MB |
 | `app-x86_64-release.apk` | emulators, minified + signed | ~89 MB |
+| `app-universal-release.apk` | any device, minified + signed | ~223 MB |
 | `app-arm64-v8a-debug.apk` | modern phones, unminified | ~97 MB |
 | `app-armeabi-v7a-debug.apk` | 32-bit ARM, unminified | ~92 MB |
 | `app-x86_64-debug.apk` | emulators, unminified | ~103 MB |
+
+`universalApk true` builds the fourth release output alongside the three splits in
+the same `assembleRelease` invocation, so it is always the same commit as the
+splits and can never drift out of step with them.
 
 ### R8, and why resource shrinking is off
 
@@ -809,7 +838,7 @@ meant to be checkable.
 - **Package name:** `com.palash.librewolfandroid`. The application id and the
   release signing key are bound to each other; see
   [Application identity](TESTING.md#application-identity).
-- **Versions:** the current release is `1.2beta2` (`versionCode 156004`), built
+- **Versions:** the current release is `1.2beta3` (`versionCode 156005`), built
   from the `beta` branch. The engine base is shown separately in Settings → About
   as upstream Firefox `156.0`, LibreWolf release `1`.
 - **Restart to apply:** engine privacy settings — cookies, HTTPS-only, GPC, DoH,
