@@ -223,6 +223,13 @@ class BrowserMediaController(private val activity: MainActivity) {
         state = PlaybackState.STATE_NONE
         snapshot = Snapshot()
         publish()
+        // The companion holds one `active` controller, and that controller holds
+        // the Activity -- which owns the GeckoView and the whole inflated view
+        // tree. Leaving it set after release kept the previous Activity reachable
+        // from a static for as long as the process lived. Rotation cycles did not
+        // show it growing in PSS on the device measured, so this is a leak closed
+        // on inspection rather than one with a measured cost.
+        if (active === this) active = null
     }
 
     private fun startTicker() {

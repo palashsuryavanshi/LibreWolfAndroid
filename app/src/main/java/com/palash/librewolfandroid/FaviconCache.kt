@@ -20,6 +20,26 @@ object FaviconCache {
     }
     private val main = Handler(Looper.getMainLooper())
 
+    /**
+     * Caps the negative caches.
+     *
+     * `misses` and `imageMisses` record that an origin has already been tried, so
+     * a 404 is not requested on every visit. Nothing ever removed from either
+     * set, so it grew by one string per distinct origin for the life of the
+     * process -- and an origin that failed once was never retried, even after the
+     * site put a favicon in place.
+     *
+     * Clearing on overflow is what the positive caches already do, so a long
+     * session cannot grow these without bound. The cost is that the next visit to
+     * a failed origin retries once, which is the correct behaviour anyway.
+     */
+    private const val MAX_MISSES = 5_000
+
+    private fun rememberMiss(set: MutableSet<String>, key: String) {
+        if (set.size >= MAX_MISSES) set.clear()
+        set.add(key)
+    }
+
     fun cached(url: String): Bitmap? = cache[originKey(url)]
 
     /** Arbitrary site-provided image, used for web app manifest icons. */
@@ -28,7 +48,7 @@ object FaviconCache {
     fun prefetchImage(url: String) {
         if (url.isBlank() || images.containsKey(url) || imageMisses.contains(url)) return
         if (!url.startsWith("https://") && !url.startsWith("http://")) return
-        imageMisses.add(url)
+        rememberMiss(imageMisses, url)
         executor.execute {
             val decoded = fetch(url, MAX_IMAGE_PX)
             if (decoded != null) {
@@ -41,7 +61,7 @@ object FaviconCache {
     fun load(url: String, onLoaded: () -> Unit) {
         val key = originKey(url)
         if (key.isBlank() || cache.containsKey(key) || misses.contains(key)) return
-        misses.add(key)
+        rememberMiss(misses, key)
         executor.execute {
             val decoded = fetch("$key/favicon.ico", MAX_FAVICON_PX)
             if (decoded != null) {
