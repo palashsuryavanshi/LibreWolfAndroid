@@ -94,6 +94,11 @@ android {
         versionCode (currentVersionCode ? currentVersionCode as int : 156005)
         versionName (fdroidVersionName ?: '1.2beta3')
 
+        // Needed for `connectedAndroidTest` to exist at all. UIAutomator rather
+        // than Espresso for anything inside GeckoView, because the engine
+        // composes in its own process and Espresso cannot see its tree.
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+
         // Mirrors source/version + source/release (desktop LibreWolf base). Kept
         // separate from versionName so About can show what this app is and what
         // engine it is based on without conflating the two.
@@ -217,6 +222,17 @@ dependencies {
     // tests would pass against empty results -- a manufactured pass. This
     // gives the tests an implementation that actually parses and serialises.
     testImplementation 'org.json:json:20231013'
+
+    // Instrumentation. The runner itself is declared in android.defaultConfig
+    // above; these are the libraries the instrumentation sources compile
+    // against.
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:rules:1.6.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    // UIAutomator, not Espresso, for anything inside GeckoView's view. The
+    // engine composes in its own process, so Espresso cannot see its tree.
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
     // AGP 9.4 embeds Kotlin 2.2.0: force stdlib metadata it can read.
     // (Dependency constraints can't downgrade; force can.)
     configurations.all {
