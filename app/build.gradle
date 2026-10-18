@@ -210,6 +210,13 @@ dependencies {
     // the suite touches an Android framework class, so it runs on the JVM with
     // no emulator. See DownloadSafetyTest.
     testImplementation 'junit:junit:4.13.2'
+    // A real org.json implementation for the JVM test classpath. Android
+    // ships org.json as a framework stub whose methods throw "not mocked"
+    // in unit tests. Setting testOptions.unitTests.returnDefaultValues would
+    // silence that, but every call would then return 0/null and the history
+    // tests would pass against empty results -- a manufactured pass. This
+    // gives the tests an implementation that actually parses and serialises.
+    testImplementation 'org.json:json:20231013'
     // AGP 9.4 embeds Kotlin 2.2.0: force stdlib metadata it can read.
     // (Dependency constraints can't downgrade; force can.)
     configurations.all {

@@ -65,7 +65,15 @@ object FaviconCache {
         executor.execute {
             val decoded = fetch("$key/favicon.ico", MAX_FAVICON_PX)
             if (decoded != null) {
-                if (cache.size >= 100) cache.clear()
+                if (cache.size >= 100) {
+                    cache.clear()
+                    // Every scaled variant was derived from a bitmap that is
+                    // now gone; keeping them would pin the memory for nothing.
+                    scaled.evictAll()
+                }
+                // A refreshed favicon replaces the old representation, so any
+                // scaled copy of the previous one is stale for this origin.
+                invalidateScaled(key)
                 cache[key] = decoded
                 main.post(onLoaded)
             }
@@ -83,6 +91,47 @@ object FaviconCache {
     private const val MAX_FAVICON_PX = 192
     private const val MAX_IMAGE_PX = 512
     private const val MAX_BYTES = 4 * 1024 * 1024
+
+    /**
+     * Byte budget for the scaled-representation cache.
+     *
+     * Sized so a full tray of rows, each with its own scaled favicon, cannot
+     * come close to it: a 192px favicon is ~144 KB decoded, so ~72 fit before
+     * eviction starts, and tray rows are far smaller than that in practice.
+     */
+    private const val MAX_SCALED_BYTES = 2 * 1024 * 1024
+
+    /**
+     * Scaled representations, keyed by `<origin>@<targetPx>`.
+     *
+     * paint() used to call Bitmap.createScaledBitmap on every single row bind
+     * and throw the result away when the row recycled, so scrolling a tray
+     * allocated a bitmap per row per bind. Worse, tray rows are 36dp (108-144px
+     * depending on density) while the overwhelming majority of favicons are
+     * 16 or 32px, so that call was upscaling: paying memory and CPU to make a
+     * picture blurrier and no more detailed.
+     *
+     * Now a favicon smaller than its row is handed to the ImageView as-is and
+     * drawn at the row size by the view itself, which is what it wants. Only a
+     * favicon genuinely larger than the row is scaled down, and that result is
+     * kept and reused.
+     *
+     * Eviction is safe with respect to what is on screen: dropping an entry
+     * only releases this cache's reference. Any view still drawing that bitmap
+     * holds its own, and Bitmaps are immutable once decoded, so it keeps
+     * drawing correctly.
+     */
+    private val scaled = object : android.util.LruCache<String, Bitmap>(MAX_SCALED_BYTES) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+    }
+
+    /** Drops every scaled variant belonging to one origin. */
+    private fun invalidateScaled(origin: String) {
+        val prefix = "$origin@"
+        for (k in scaled.snapshot().keys) {
+            if (k.startsWith(prefix)) scaled.remove(k)
+        }
+    }
 
     private fun fetch(url: String, maxPx: Int): Bitmap? = runCatching {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -136,9 +185,10 @@ object FaviconCache {
      */
     fun bind(badge: android.widget.TextView, image: android.widget.ImageView, url: String, letter: String) {
         badge.tag = url
+        val origin = originKey(url)
         val ready = cached(url)
         if (ready != null) {
-            paint(badge, image, ready)
+            paint(badge, image, ready, origin)
             return
         }
         badge.text = letter
@@ -146,20 +196,41 @@ object FaviconCache {
         image.visibility = android.view.View.GONE
         load(url) {
             if (badge.tag != url) return@load
-            cached(url)?.let { paint(badge, image, it) }
+            cached(url)?.let { paint(badge, image, it, origin) }
         }
     }
 
-    private fun paint(badge: android.widget.TextView, image: android.widget.ImageView, bitmap: Bitmap) {
+    private fun paint(
+        badge: android.widget.TextView,
+        image: android.widget.ImageView,
+        bitmap: Bitmap,
+        origin: String,
+    ) {
         val size = badge.resources.getDimensionPixelSize(R.dimen.favicon_size)
-        val scaled = if (bitmap.width == size && bitmap.height == size) {
-            bitmap
-        } else {
-            Bitmap.createScaledBitmap(bitmap, size, size, true)
-        }
-        image.setImageBitmap(scaled)
+        val shown = representation(bitmap, origin, size)
+        image.setImageBitmap(shown)
         image.visibility = android.view.View.VISIBLE
         badge.text = ""
+    }
+
+    /**
+     * The bitmap to hand the row, without rebuilding it every bind.
+     *
+     * A source already at or below the row size is returned untouched. Making a
+     * 32px favicon into a 144px bitmap costs 144 KB to hold and produces
+     * exactly the picture the view would have drawn itself; ImageView scales at
+     * draw time either way.
+     */
+    private fun representation(bitmap: Bitmap, origin: String, size: Int): Bitmap {
+        if (size <= 0 || bitmap.isRecycled) return bitmap
+        if (bitmap.width <= size && bitmap.height <= size) return bitmap
+
+        val key = "$origin@$size"
+        scaled.get(key)?.let { if (!it.isRecycled) return it }
+
+        val out = Bitmap.createScaledBitmap(bitmap, size, size, true)
+        scaled.put(key, out)
+        return out
     }
 
     private fun originKey(url: String): String = runCatching {
