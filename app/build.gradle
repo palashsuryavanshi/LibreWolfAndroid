@@ -203,6 +203,13 @@ dependencies {
     // GeckoView 147: newest stable hopefully still targeting compileSdk ≤37.0
     // (154/155 demand 37.1, which has no stable platform).
     implementation 'org.mozilla.geckoview:geckoview:147.0.20260212191108'
+
+    // Unit tests only. These cover pure decision logic -- download risk
+    // classification and filename sanitisation -- which is security relevant
+    // and had previously only been checked by hand on a device. Nothing in
+    // the suite touches an Android framework class, so it runs on the JVM with
+    // no emulator. See DownloadSafetyTest.
+    testImplementation 'junit:junit:4.13.2'
     // AGP 9.4 embeds Kotlin 2.2.0: force stdlib metadata it can read.
     // (Dependency constraints can't downgrade; force can.)
     configurations.all {

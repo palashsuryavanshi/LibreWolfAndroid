@@ -37,6 +37,14 @@ jobs:
           sed -i 's/^AndroidVersion.ApiLevel=37.1$/AndroidVersion.ApiLevel=37/' "$ANDROID_HOME/platforms/android-37/source.properties"
           sed -i 's/^ro.build.version.codename=DEV$/ro.build.version.codename=REL/' "$ANDROID_HOME/platforms/android-37/build.prop"
 
+      # Pure-JVM unit tests. These pin the download risk decisions and the
+      # filename sanitisation -- both security relevant -- which were previously
+      # only ever verified by hand on a device, so a regression in either would
+      # not have been caught by a build. Runs before lint so a broken test
+      # fails the job for its own reason rather than surfacing later.
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
       - name: Lint debug shell
         run: ./gradlew :app:lintDebug --no-daemon
 
