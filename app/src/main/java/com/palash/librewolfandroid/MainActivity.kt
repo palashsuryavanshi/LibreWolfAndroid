@@ -536,7 +536,7 @@ class MainActivity : AppCompatActivity() {
                 updateAddress()
                 applyWebAppDisplayMode()
             }
-            tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+            refreshTray()
         }
 
         override fun onCanGoBack(session: GeckoSession, canGoBack: Boolean) {
@@ -565,7 +565,7 @@ class MainActivity : AppCompatActivity() {
                 homeOverlay.visibility = View.GONE
                 geckoView.visibility = View.VISIBLE
             }
-            tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+            refreshTray()
             return GeckoResult.fromValue(BrowserErrorPage.dataUri(uri, error))
         }
 
@@ -621,7 +621,7 @@ class MainActivity : AppCompatActivity() {
             if (!tab.isPrivate) {
                 FaviconCache.load(url) {
                     if (!isFinishing && !isDestroyed && tabFor(session)?.url == url) {
-                        tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+                        refreshTray()
                     }
                 }
             }
@@ -631,7 +631,7 @@ class MainActivity : AppCompatActivity() {
                 progress.visibility = View.VISIBLE
                 updateAddress()
             }
-            tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+            refreshTray()
         }
 
         override fun onPageStop(session: GeckoSession, success: Boolean) {
@@ -652,7 +652,7 @@ class MainActivity : AppCompatActivity() {
                 progress.visibility = View.GONE
                 updateAddress()
             }
-            tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+            refreshTray()
         }
 
         override fun onProgressChange(session: GeckoSession, newProgress: Int) {
@@ -662,7 +662,7 @@ class MainActivity : AppCompatActivity() {
                 progress.visibility = if (newProgress in 1..99) View.VISIBLE else View.GONE
                 progress.progress = newProgress
             }
-            tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+            refreshTray()
         }
 
         override fun onSecurityChange(
@@ -680,7 +680,7 @@ class MainActivity : AppCompatActivity() {
             val tab = tabFor(session) ?: return
             tab.title = title.orEmpty()
             if (tab.id == activeId) updateAddress()
-            tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+            refreshTray()
         }
 
         override fun onWebAppManifest(session: GeckoSession, manifest: org.json.JSONObject) {
@@ -1631,7 +1631,7 @@ class MainActivity : AppCompatActivity() {
         )
         tabs.add(popup)
         updateBadge()
-        tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+        refreshTray()
         return popup.session
     }
 
@@ -1736,7 +1736,7 @@ class MainActivity : AppCompatActivity() {
         updateEngineBadge()
         updateTrackers()
         updateBadge()
-        tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+        refreshTray()
     }
 
     private fun closeTab(id: Long) {
@@ -1792,7 +1792,7 @@ class MainActivity : AppCompatActivity() {
         // nothing here a broad wipe could disturb.
         val emptied = tabs.none { !it.isHome }
         if (removed.isPrivate && !emptied && tabs.none { it.isPrivate }) sanitize(keepPage = true)
-        tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+        refreshTray()
     }
 
     private fun closeAllTabs(privateOnly: Boolean) {
@@ -1819,7 +1819,31 @@ class MainActivity : AppCompatActivity() {
         // As in closeTab: the broad clear only runs when a real session
         // survived it, not when the tray was emptied and refilled.
         if (privateOnly && !emptied && tabs.none { it.isPrivate }) sanitize(keepPage = true)
-        tabsSheet?.refresh(snapshot(), snapshot().filter { it.id in inactiveIds() }, trayTrackersText)
+        refreshTray()
+    }
+
+    /**
+     * Pushes fresh tab data into the tray, but only when the tray can be seen.
+     *
+     * Every page start, page stop, title change and favicon arrival used to
+     * rebuild the whole tab list here: `snapshot()` mapped every tab to a new
+     * TabItem, and it was called twice at each of these call sites because the
+     * inactive page needs its own filtered copy. `inactiveIds()` allocated a
+     * Set on the way. All of it then reached `TabsSheet.refresh()`, whose
+     * first statement is `if (dialog?.isShowing != true) return` -- so on a
+     * closed tray the work was built and thrown away on the main thread.
+     *
+     * Skipping it here rather than inside refresh() is safe because opening the
+     * tray does not reuse this instance: showTabsSheet() constructs a fresh
+     * TabsSheet and gives it its own snapshot. The cached `tabs` field on the
+     * closed sheet is never read, so leaving it stale cannot show anything
+     * out of date.
+     */
+    private fun refreshTray() {
+        val sheet = tabsSheet ?: return
+        if (sheet.dialog?.isShowing != true) return
+        val all = snapshot()
+        sheet.refresh(all, all.filter { it.id in inactiveIds() }, trayTrackersText)
     }
 
     private fun snapshot(): List<TabItem> =
@@ -2673,9 +2697,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showTabsSheet() {
         val inactive = inactiveIds()
+        val all = snapshot()
         val sheet = TabsSheet().apply {
-            tabs = snapshot()
-            inactiveTabs = snapshot().filter { it.id in inactive }
+            tabs = all
+            inactiveTabs = all.filter { it.id in inactive }
             trackersText = this@MainActivity.trayTrackersText
             columns = store.tabViewColumns
             showGroups = store.tabGroups
