@@ -56,6 +56,37 @@ class TabsSheet : BottomSheetDialogFragment() {
         savedInstanceState: Bundle?,
     ): View = inflater.inflate(R.layout.sheet_tabs, container, false)
 
+    /**
+     * Drive the sheet to full screen.
+     *
+     * The layout alone is not enough. A BottomSheetDialogFragment sizes itself
+     * to the peek height and leaves the rest of the window dimmed behind it, so
+     * with a match_parent content view the sheet still looked like a panel
+     * occupying part of the screen. Setting the state to EXPANDED and disabling
+     * collapse is what makes it fill the window.
+     *
+     * The window is also made to match the parent in both axes and the
+     * navigation bar background cleared, otherwise a full-height sheet leaves a
+     * gap at the bottom where the scrim shows through.
+     */
+    override fun onStart() {
+        super.onStart()
+        val dialog = dialog as? com.google.android.material.bottomsheet.BottomSheetDialog ?: return
+        val sheet = dialog.findViewById<View>(
+            com.google.android.material.R.id.design_bottom_sheet,
+        ) ?: return
+        sheet.layoutParams = sheet.layoutParams.apply { height = ViewGroup.LayoutParams.MATCH_PARENT }
+        dialog.behavior.apply {
+            state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+            skipCollapsed = true
+            isFitToContents = false
+        }
+        dialog.window?.apply {
+            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setNavigationBarColor(android.graphics.Color.TRANSPARENT)
+        }
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val list = view.findViewById<RecyclerView>(R.id.tabs_list)
         adapter = TabsAdapter(

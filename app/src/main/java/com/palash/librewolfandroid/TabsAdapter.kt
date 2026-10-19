@@ -20,6 +20,15 @@ data class TabItem(
     val isSelected: Boolean,
     val isLoading: Boolean = false,
     val favicon: Bitmap? = null,
+    /**
+     * A preview of this tab's rendered page, when one has been captured.
+     *
+     * Nullable on purpose. A preview is only obtainable for a session that is
+     * currently attached to the engine's view, so most tabs have none until the
+     * user leaves them. The card falls back to its title-and-url placeholder
+     * rather than showing a stale or empty image.
+     */
+    val preview: Bitmap? = null,
 )
 
 /** Letter-badge colors for tab/history rows. */
@@ -37,6 +46,28 @@ fun badgeLetter(title: String, url: String): String {
     if (s.isEmpty()) return "•"
     val stripped = s.removePrefix("http://").removePrefix("https://").removePrefix("www.")
     return stripped.first().uppercaseChar().toString()
+}
+
+/**
+ * Paint a captured page preview into a card, or clear it.
+ *
+ * A null preview is not the same as "no preview yet": clearing the image
+ * avoids a recycled row reusing the previous entry's bitmap. RecyclerView
+ * recycles holders, so without this a card that scrolled away and came back
+ * could show another tab's page.
+ *
+ * Shared by both adapters, which is why it is top-level: they are separate
+ * classes and each has its own ViewHolder type.
+ */
+private fun bindPreviewInto(view: android.widget.ImageView, bitmap: Bitmap?) {
+    val b = bitmap?.takeIf { !it.isRecycled }
+    if (b == null) {
+        view.setImageDrawable(null)
+        view.visibility = View.GONE
+        return
+    }
+    view.setImageBitmap(b)
+    view.visibility = View.VISIBLE
 }
 
 private fun bindIcon(icon: TextView, tab: TabItem) {
@@ -69,7 +100,10 @@ class TabsAdapter(
         val privateTag: TextView = v.findViewById(R.id.tab_private)
         val loading: android.widget.ProgressBar = v.findViewById(R.id.tab_loading)
         val close: ImageButton = v.findViewById(R.id.tab_close)
+        val preview: android.widget.ImageView = v.findViewById(R.id.tab_preview)
     }
+
+    
 
     /**
      * Progress ticks, title changes and location changes all funnel through
@@ -111,6 +145,7 @@ class TabsAdapter(
         h.title.text = tab.title.ifEmpty { tab.url.ifEmpty { "New tab" } }
         h.url.text = tab.url
         bindIcon(h.icon, tab)
+        bindPreviewInto(h.preview, tab.preview)
         h.privateTag.visibility = if (tab.isPrivate) View.VISIBLE else View.GONE
         h.loading.visibility = if (tab.isLoading) View.VISIBLE else View.GONE
         h.card.setCardBackgroundColor(
@@ -170,6 +205,7 @@ class GroupedTabsAdapter(
         val privateTag: TextView = v.findViewById(R.id.tab_private)
         val loading: android.widget.ProgressBar = v.findViewById(R.id.tab_loading)
         val close: ImageButton = v.findViewById(R.id.tab_close)
+        val preview: android.widget.ImageView = v.findViewById(R.id.tab_preview)
     }
 
     fun itemAt(position: Int): TabItem? = (rows.getOrNull(position) as? Row.TabRow)?.item
@@ -227,6 +263,7 @@ class GroupedTabsAdapter(
                 h.title.text = t.title.ifEmpty { t.url.ifEmpty { ctx.getString(R.string.new_tab) } }
                 h.url.text = t.url
                 bindIcon(h.icon, t)
+                bindPreviewInto(h.preview, t.preview)
                 h.privateTag.visibility = if (t.isPrivate) View.VISIBLE else View.GONE
                 h.loading.visibility = if (t.isLoading) View.VISIBLE else View.GONE
                 h.card.strokeWidth = if (t.isSelected) 4 else 0

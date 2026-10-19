@@ -1,7 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Full-screen tab switcher.
+
+  This used to be a wrap_content sheet: the root hugged its children and the list
+  was capped at 420dp, so opening the tray showed a partial panel over a dimmed
+  page instead of filling the screen, and a tray with more than a handful of
+  tabs was cut off.
+
+  The root is now match_parent in both axes and the list is weighted to take
+  whatever the header and the bottom bar leave, so the switcher occupies the
+  whole application content area at any tab count. The sheet itself is also
+  driven to STATE_EXPANDED with collapsing disabled in TabsSheet.onStart; a
+  large peek height alone would still leave it looking like a partial sheet.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:background="@color/librewolf_bg"
     android:orientation="vertical"
     android:padding="16dp">
@@ -114,9 +128,9 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/tabs_list"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
         android:layout_marginTop="8dp"
-        android:maxHeight="420dp" />
+        android:layout_weight="1" />
 
     <LinearLayout
         android:layout_width="match_parent"

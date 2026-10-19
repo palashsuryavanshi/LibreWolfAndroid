@@ -676,6 +676,7 @@
     <string name="private_browsing_notification_text">This tab keeps no history, cookies or site data. Tap to put this away.</string>
     <string name="private_tab">Private</string>
     <string name="selected_tab">Selected</string>
+    <string name="a11y_tab_preview">Page preview</string>
     <string name="loading">Loading</string>
     <string name="option_selected">%1$s, selected</string>
     <string name="option_not_selected">%1$s</string>

@@ -8,6 +8,7 @@ import android.app.PictureInPictureParams
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.TouchDelegate
@@ -88,6 +89,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val HOME_START = "lw:start"
         const val ACTION_PRIVATE_TAB = "com.palash.librewolfandroid.PRIVATE_TAB"
+
+        /** Tag for preview-capture diagnostics. Never logs a URL or a tab title. */
+        const val TAG_PREVIEW = "LibreWolfPreview"
         const val ACTION_ABOUT = "com.palash.librewolfandroid.ABOUT"
         const val ACTION_OPEN_NOTIFICATION = "com.palash.librewolfandroid.OPEN_NOTIFICATION"
         const val ACTION_DATA_CLEARED = "com.palash.librewolfandroid.DATA_CLEARED"
@@ -172,6 +176,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sitePermissionStore: SitePermissionStore
     private lateinit var loginStore: LoginStore
     private lateinit var mediaController: BrowserMediaController
+
+    /**
+     * Page previews for the tab switcher, keyed by the stable tab id.
+     *
+     * A preview is only obtainable for a session attached to the engine's view,
+     * so it is captured when a tab is left rather than continuously. The cache
+     * is byte-bounded (see [PreviewCache]); under memory pressure the previews
+     * are the first thing dropped, because dropping one degrades a thumbnail
+     * while dropping a tab would lose the user's page.
+     */
+    private val previews = PreviewCache()
 
     /** The standing "this tab is private" reminder. */
     private lateinit var privateIndicator: PrivateBrowsingNotifier
@@ -647,7 +662,14 @@ class MainActivity : AppCompatActivity() {
             // backgrounding out of the store, so a sudden death (crash,
             // force-stop) would lose them. Serializing a few dozen small
             // records per page load is negligible next to the page itself.
-            if (success) saveTabState()
+            if (success) {
+                saveTabState()
+                // Capture once a page has finished loading, not on every
+                // progress tick: onPageStop fires once per navigation, so this
+                // is the point at which a fresh preview is actually worth
+                // taking. Only the tab in front can be captured at all.
+                capturePreview(tab)
+            }
             if (tab.id == activeId) {
                 progress.visibility = View.GONE
                 updateAddress()
@@ -1341,6 +1363,12 @@ class MainActivity : AppCompatActivity() {
             level == android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE
         if (cacheable) {
             runCatching { runtime?.storageController?.clearData(StorageController.ClearFlags.ALL_CACHES) }
+            // Previews are the cheapest thing here to give up: they are
+            // regenerated on the next switch, and dropping them costs the user a
+            // placeholder thumbnail rather than a page. Anything that still
+            // holds one does so only until the next bind, and the cache is
+            // byte-bounded, so this cannot be what is pushing the process out.
+            previews.clear()
         }
         if (destructive) {
             suspendBackgroundTabs()
@@ -1384,6 +1412,67 @@ class MainActivity : AppCompatActivity() {
         // it was already in the tab's own fields before this ran. Private tabs
         // are never persisted, so nothing reaches disk either way.
         saveTabState()
+    }
+
+    /**
+     * Capture a thumbnail of the tab currently in front.
+     *
+     * `capturePixels()` is the engine's supported way to get the rendered page,
+     * and it only works for the session attached to the view, which is why this
+     * is called as a tab is left rather than for every tab at once. A background
+     * tab has no attached view and no render to snapshot.
+     *
+     * The capture is full-resolution (a 1080x2400 page is ~9.7 MB as ARGB), so
+     * it is scaled down before it is cached. Storing the raw capture would let
+     * a tray of twenty tabs hold tens of megabytes of bitmaps that are displayed
+     * at a fraction of that size.
+     *
+     * Failures are swallowed deliberately: a preview is a nicety. Keeping the
+     * previous preview, or falling back to the placeholder, is the correct
+     * outcome for a failed capture, and nothing here should be able to break
+     * navigation.
+     */
+    private fun capturePreview(tab: Tab) {
+        if (activeId != tab.id) return
+        if (tab.isHome || tab.url.isBlank()) return
+        if (!::geckoView.isInitialized) return
+        runCatching {
+            // The two-argument accept, so a rejection is visible rather than
+            // silently leaving the tab without a preview. The failure path is
+            // deliberately non-fatal -- a preview is a nicety -- but it is
+            // logged, because "no previews ever appear" is otherwise
+            // indistinguishable from "previews are working".
+            geckoView.capturePixels().accept(
+                { captured ->
+                    val bmp = captured
+                    if (bmp == null || bmp.isRecycled) {
+                        android.util.Log.w(TAG_PREVIEW, "capture for tab ${tab.id} returned no bitmap")
+                        return@accept
+                    }
+                    val longest = maxOf(bmp.width, bmp.height)
+                    val target = 640
+                    val stored = if (longest > target) {
+                        val factor = target.toFloat() / longest
+                        Bitmap.createScaledBitmap(
+                            bmp,
+                            (bmp.width * factor).toInt().coerceAtLeast(1),
+                            (bmp.height * factor).toInt().coerceAtLeast(1),
+                            true,
+                        )
+                    } else {
+                        bmp
+                    }
+                    previews.put(tab.id, stored)
+                    android.util.Log.i(
+                        TAG_PREVIEW,
+                        "captured tab ${tab.id}: ${stored.width}x${stored.height}",
+                    )
+                },
+                { err ->
+                    android.util.Log.w(TAG_PREVIEW, "capture for tab ${tab.id} failed: $err")
+                },
+            )
+        }
     }
 
     private fun reviveTab(tab: Tab) {
@@ -1683,6 +1772,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun selectTab(id: Long) {
         val tab = tabs.find { it.id == id } ?: return
+        // Snapshot the tab being left while its session is still attached to
+        // the view. A background tab has no attached render, so there is no
+        // other point at which its preview can be taken.
+        tabs.firstOrNull { it.id == activeId }?.let { capturePreview(it) }
         activeId = id
         // Every path that changes which tab is in front goes through here, so
         // this is the one place the private-browsing reminder has to be right.
@@ -1742,6 +1835,10 @@ class MainActivity : AppCompatActivity() {
     private fun closeTab(id: Long) {
         val index = tabs.indexOfFirst { it.id == id }
         if (index == -1) return
+        // Drop the preview with the tab. Leaving it in the cache would hold a
+        // bitmap for a tab that no longer exists, and a recycled id could
+        // otherwise hand that image to an unrelated tab later.
+        previews.remove(id)
         val removed = tabs[index]
         if (!removed.isPrivate && !removed.isHome && removed.url.isNotBlank()) {
             sessionStore.addClosed(removed.url, removed.title)
@@ -1856,6 +1953,7 @@ class MainActivity : AppCompatActivity() {
                 it.id == activeId,
                 it.isLoading,
                 if (it.isPrivate) null else FaviconCache.cached(it.url),
+                previews.get(it.id),
             )
         }
 

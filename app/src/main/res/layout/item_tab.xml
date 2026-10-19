@@ -58,6 +58,21 @@
         android:layout_marginTop="8dp"
         android:background="@color/librewolf_thumbnail">
 
+        <!--
+          The page preview. This is the actual rendered content of the tab, not
+          a favicon or a coloured rectangle: it comes from
+          GeckoView.capturePixels() and is stored per tab id in a bounded cache
+          (PreviewCache). centerCrop keeps the aspect ratio and fills the card
+          without distorting the page. The title/url/private/loading overlays sit
+          on top of it in the same FrameLayout.
+        -->
+        <ImageView
+            android:id="@+id/tab_preview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/a11y_tab_preview"
+            android:scaleType="centerCrop" />
+
         <TextView
             android:id="@+id/tab_url"
             android:layout_width="match_parent"
