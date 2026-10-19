@@ -82,17 +82,17 @@ android {
         minSdk 26
         targetSdk 34
         // versionCode must strictly increase for an update to install over an
-        // existing copy. The published v1.1.1 is at 156003 and v1.2beta2 at
-        // 156004, so this line moves to 156005; reusing or lowering it would
-        // make this a downgrade, which Android refuses and for which the only
-        // remedy is an uninstall -- and an uninstall deletes the user's history,
-        // bookmarks, cookies and vault.
+        // existing copy. v1.1.1 is 156003, v1.2beta2 is 156004 and v1.2beta3 is
+        // 156005, so v1.3 takes 156006. Reusing or lowering it would make this
+        // a downgrade, which Android refuses, and the only remedy for that is an
+        // uninstall -- which deletes the user's history, bookmarks, cookies and
+        // vault.
         //
         // currentVersionCode exists so F-Droid can assign a distinct code per
         // ABI. It overrides the literal rather than replacing it, so the
         // shipped version is always visible here.
-        versionCode (currentVersionCode ? currentVersionCode as int : 156005)
-        versionName (fdroidVersionName ?: '1.2beta3')
+        versionCode (currentVersionCode ? currentVersionCode as int : 156006)
+        versionName (fdroidVersionName ?: '1.3')
 
         // Needed for `connectedAndroidTest` to exist at all. UIAutomator rather
         // than Espresso for anything inside GeckoView, because the engine
