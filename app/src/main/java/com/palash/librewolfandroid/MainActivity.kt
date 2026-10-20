@@ -1095,7 +1095,14 @@ class MainActivity : AppCompatActivity() {
         }
         addressText.setOnFocusChangeListener { _, focused ->
             if (focused) {
-                addressText.selectAll()
+                // The URL used to be selected in full on focus, which meant the
+                // first tap had no effect on the cursor: the whole text went
+                // blue and the next keystroke replaced it. A user who tapped
+                // the middle of a long URL to fix one character got the whole
+                // thing selected instead, and there was no way to tell the app
+                // "leave the cursor where I put it". Explicit Select All (the
+                // long-press menu, Ctrl+A) is untouched, so that behaviour is
+                // still available on demand.
                 updateSuggestions(addressText.text.toString())
             } else {
                 hideSuggestions()
@@ -1158,7 +1165,11 @@ class MainActivity : AppCompatActivity() {
 
         restoreTabsIfAvailable()
         maybeStartOnboarding()
-        handleIntent(intent)
+        // savedInstanceState != null means we are recreating the Activity from
+        // saved state. A launch intent that was already handled before the
+        // process died must not create a second tab for the same request, so
+        // the external-link branch below is gated on it.
+        handleIntent(intent, freshLaunch = savedInstanceState == null)
     }
 
     /**
@@ -1177,10 +1188,12 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleIntent(intent)
+        // Warm-start delivery: the app was already running, so this is a
+        // genuine new external request even though no Activity was recreated.
+        handleIntent(intent, freshLaunch = true)
     }
 
-    private fun handleIntent(intent: Intent?) {
+    private fun handleIntent(intent: Intent?, freshLaunch: Boolean = true) {
         if (intent == null) return
         intent.getStringExtra(EXTRA_WEB_APP)?.let { appUrl ->
             intent.removeExtra(EXTRA_WEB_APP)
@@ -1212,10 +1225,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
         val data = intent.data?.toString()
-        if (tabs.isEmpty()) newTab(isPrivate = false, select = true)
-        // Every scheme lands in navigate(), which owns the URL-vs-search
-        // decision and the external-scheme handoff. (This used to be a
-        // three-way branch with navigate(data) in all three arms.)
+        val isExternalWebLink = intent.action == Intent.ACTION_VIEW && data != null &&
+            (data.startsWith("http://", ignoreCase = true) ||
+                data.startsWith("https://", ignoreCase = true))
+
+        // External HTTP/HTTPS links always open in a new tab, so a link from
+        // another app can never replace the page the user was reading. Existing
+        // tabs stay where they are and the new tab becomes active. The tab is
+        // created before navigate() runs, so navigate() lands in it.
+        if (isExternalWebLink && freshLaunch) {
+            newTab(isPrivate = false, select = true, skipHomepage = true)
+        } else if (tabs.isEmpty()) {
+            newTab(isPrivate = false, select = true)
+        }
         if (data != null) {
             navigate(data)
         } else if (store.homepage != HOME_START && activeTab()?.isHome == true) {
@@ -1732,7 +1754,7 @@ class MainActivity : AppCompatActivity() {
      * fresh one from the counter, which is then advanced past any restored id
      * so a later tab can never collide with one that was brought back.
      */
-    private fun newTab(isPrivate: Boolean, select: Boolean, id: Long? = null): Tab {
+    private fun newTab(isPrivate: Boolean, select: Boolean, id: Long? = null, skipHomepage: Boolean = false): Tab {
         applyCloseTabsPolicy()
         val tabId = id ?: nextId++
         if (tabId >= nextId) nextId = tabId + 1
@@ -1740,7 +1762,7 @@ class MainActivity : AppCompatActivity() {
         tabs.add(tab)
         if (select) {
             selectTab(tab.id)
-            if (store.homepage != HOME_START) navigate(store.homepage)
+            if (!skipHomepage && store.homepage != HOME_START) navigate(store.homepage)
         } else {
             updateBadge()
         }

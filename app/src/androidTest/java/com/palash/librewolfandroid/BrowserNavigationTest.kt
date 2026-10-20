@@ -2,6 +2,7 @@ package com.palash.librewolfandroid
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
+import androidx.test.uiautomator.UiDevice
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -102,6 +103,33 @@ class BrowserNavigationTest {
         assertTrue("browser died on a malformed input", Ui.isAppForeground())
         Ui.navigate(server.url("/page1"))
         Ui.waitForTitle("Fixture Page 1")
+    }
+
+    @Test
+    fun t00_firstTapDoesNotSelectTheWholeUrl() {
+        // The address bar used to select the whole URL on focus, so the first
+        // keystroke replaced it. Tapping must leave the text in place and put
+        // the cursor at the tap point instead.
+        Ui.navigate(server.url("/page1"))
+        Ui.waitForTitle("Fixture Page 1")
+        val urlBefore = Ui.textOf("address_text")
+        assertTrue("a URL should be shown", !urlBefore.isNullOrBlank())
+
+        val field = Ui.require("address_text")
+        field.click()
+        Thread.sleep(300)
+        // Type a single character via the keyboard path rather than
+        // overwriting the field, which is what the bug used to do.
+        UiDevice.getInstance(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation())
+            .pressKeyCode(android.view.KeyEvent.KEYCODE_X)
+        Thread.sleep(300)
+        val urlAfter = Ui.textOf("address_text")
+        assertTrue(
+            "typing must insert, not replace: before='$urlBefore' after='$urlAfter'",
+            urlAfter != null &&
+                urlAfter.contains(urlBefore!!) &&
+                urlAfter.length == urlBefore.length + 1,
+        )
     }
 
     @Test
