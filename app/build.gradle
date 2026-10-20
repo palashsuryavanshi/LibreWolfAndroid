@@ -91,8 +91,8 @@ android {
         // currentVersionCode exists so F-Droid can assign a distinct code per
         // ABI. It overrides the literal rather than replacing it, so the
         // shipped version is always visible here.
-        versionCode (currentVersionCode ? currentVersionCode as int : 156007)
-        versionName (fdroidVersionName ?: '1.3beta2')
+        versionCode (currentVersionCode ? currentVersionCode as int : 156008)
+        versionName (fdroidVersionName ?: '1.4')
 
         // Needed for `connectedAndroidTest` to exist at all. UIAutomator rather
         // than Espresso for anything inside GeckoView, because the engine
