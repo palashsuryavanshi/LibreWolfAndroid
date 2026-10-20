@@ -1095,14 +1095,11 @@ class MainActivity : AppCompatActivity() {
         }
         addressText.setOnFocusChangeListener { _, focused ->
             if (focused) {
-                // The URL used to be selected in full on focus, which meant the
-                // first tap had no effect on the cursor: the whole text went
-                // blue and the next keystroke replaced it. A user who tapped
-                // the middle of a long URL to fix one character got the whole
-                // thing selected instead, and there was no way to tell the app
-                // "leave the cursor where I put it". Explicit Select All (the
-                // long-press menu, Ctrl+A) is untouched, so that behaviour is
-                // still available on demand.
+                // Select the whole URL on focus so a single keystroke can replace
+                // it. Explicit Select All (long-press menu, Ctrl+A) remains
+                // available for the cases where the user wants the selection
+                // without re-focusing.
+                addressText.selectAll()
                 updateSuggestions(addressText.text.toString())
             } else {
                 hideSuggestions()
