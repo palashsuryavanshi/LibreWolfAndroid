@@ -152,10 +152,14 @@ class TabsSheet : BottomSheetDialogFragment() {
     }
 
     private fun visible(): List<TabItem> = when (mode) {
-        MODE_PRIVATE -> tabs.filter { it.isPrivate }
+        // The start page is not a tab and must not appear in the switcher. It
+        // is the blank sheet the browser opens on, not something the user
+        // opened, so listing it made an empty browser look like it had one tab
+        // and gave that tab a close button that closed nothing.
+        MODE_PRIVATE -> tabs.filter { it.isPrivate && !it.isHome }
         MODE_INACTIVE -> inactiveTabs
-        MODE_GROUPS -> tabs.filter { !it.isPrivate }
-        else -> tabs.filter { !it.isPrivate }
+        MODE_GROUPS -> tabs.filter { !it.isPrivate && !it.isHome }
+        else -> tabs.filter { !it.isPrivate && !it.isHome }
     }
 
     private fun switchMode(next: Int) {

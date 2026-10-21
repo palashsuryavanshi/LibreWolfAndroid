@@ -2000,6 +2000,7 @@ class MainActivity : AppCompatActivity() {
                 it.isPrivate,
                 it.id == activeId,
                 it.isLoading,
+                it.isHome,
                 if (it.isPrivate) null else FaviconCache.cached(it.url),
                 previews.get(it.id),
             )
@@ -2016,7 +2017,12 @@ class MainActivity : AppCompatActivity() {
      */
     private fun updateBadge() {
         val privateActive = activeTab()?.isPrivate == true
-        val count = tabs.count { it.isPrivate == privateActive }
+        // The start page is not a tab. It is the blank sheet the browser opens on
+        // so there is somewhere to land, and counting it made a fresh install
+        // show "1 open tab" when the user had not opened anything. Home tabs
+        // are still in `tabs` -- they hold a live session -- they are simply
+        // not part of the count.
+        val count = tabs.count { it.isPrivate == privateActive && !it.isHome }
         tabsCount.text = count.toString()
         // The bare digit tells a screen reader nothing about what tapping it
         // does, so it is restated as the count of the kind of tab in front.

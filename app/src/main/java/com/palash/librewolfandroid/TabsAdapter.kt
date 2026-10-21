@@ -19,6 +19,13 @@ data class TabItem(
     val isPrivate: Boolean,
     val isSelected: Boolean,
     val isLoading: Boolean = false,
+    /**
+     * True for the start page. It is not a tab the user opened, so the
+     * switcher excludes it and the badge does not count it -- but it is still
+     * in the session model, because it holds the GeckoSession the browser
+     * would otherwise have nowhere to land.
+     */
+    val isHome: Boolean = false,
     val favicon: Bitmap? = null,
     /**
      * A preview of this tab's rendered page, when one has been captured.
