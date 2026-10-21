@@ -382,9 +382,18 @@ class MainActivity : AppCompatActivity() {
             }
             if (store.autocompleteUrls) {
                 if (text.contains(".") && !text.contains(" ")) {
+                    // Do not prepend a scheme to text that already has one.
+                    // The address field shows the URL itself while editing, so
+                    // "https://example.com/" used to be offered back as
+                    // "Go to https://https://example.com/".
+                    val hasScheme = text.startsWith("http://", ignoreCase = true) ||
+                        text.startsWith("https://", ignoreCase = true)
                     items.add(
                         Suggestion(
-                            getString(R.string.sug_go, "https://$text"),
+                            getString(
+                                R.string.sug_go,
+                                if (hasScheme) text else "https://$text",
+                            ),
                             text,
                             ">",
                         ) { navigate(text) },
@@ -1095,14 +1104,34 @@ class MainActivity : AppCompatActivity() {
         }
         addressText.setOnFocusChangeListener { _, focused ->
             if (focused) {
-                // Select the whole URL on focus so a single keystroke can replace
-                // it. Explicit Select All (long-press menu, Ctrl+A) remains
-                // available for the cases where the user wants the selection
-                // without re-focusing.
-                addressText.selectAll()
+                // The field shows the page title while it is not in front (the
+                // "preview"), which is what makes a long URL readable. On focus
+                // the URL itself has to come back, because that is what the
+                // user is about to edit -- and it is selected in full, so a
+                // single keystroke replaces the whole thing. Without the
+                // setText() the selection would land on the title, and the
+                // first keystroke would rewrite the title instead of the
+                // address the user thinks they are editing.
+                val tab = activeTab()
+                if (tab != null && !tab.isHome && tab.url.isNotBlank()) {
+                    val url = tab.url
+                    if (addressText.text.toString() != url) addressText.setText(url)
+                    // Posted, not called directly: the tap that caused
+                    // this focus change is still being processed, and it
+                    // would place the cursor at the tap point and undo a
+                    // selection made here. Running after that handling
+                    // is what makes the whole URL selected.
+                    addressText.post {
+                        if (addressText.hasFocus()) {
+                            addressText.setSelection(0, addressText.text.length)
+                        }
+                    }
+                }
                 updateSuggestions(addressText.text.toString())
             } else {
                 hideSuggestions()
+                // updateAddress() restores the title preview now that the
+                // field has stopped being edited.
                 updateAddress()
             }
         }
