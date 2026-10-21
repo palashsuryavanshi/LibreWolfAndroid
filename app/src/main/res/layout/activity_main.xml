@@ -11,11 +11,25 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <org.mozilla.geckoview.GeckoView
-            android:id="@+id/geckoview"
+        <!--
+             Pull-to-refresh. The GeckoView is wrapped so a downward pull at
+             the top of a page reloads it. RefreshableGeckoView is used rather
+             than GeckoView directly because the engine does not report its
+             scroll position through canScrollVertically, and the refresh
+             layout needs that answer to decide whether a pull should scroll
+             the page or refresh it.
+        -->
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/pull_refresh"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="gone" />
+            android:layout_height="match_parent">
+
+            <com.palash.librewolfandroid.RefreshableGeckoView
+                android:id="@+id/geckoview"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
         <!-- The start page: logo at the top left, title at the top right, on one
              row and sharing its height. A Space pushes the title to the end, so

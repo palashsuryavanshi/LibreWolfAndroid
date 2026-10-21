@@ -205,6 +205,11 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    // Pull-to-refresh on web pages. Chosen over a hand-rolled gesture detector
+    // because it owns the refresh-icon animation and the touch arbitration
+    // against the page's own scrolling, which is the part that is easy to get
+    // subtly wrong.
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     // GeckoView 147: newest stable hopefully still targeting compileSdk ≤37.0
     // (154/155 demand 37.1, which has no stable platform).
     implementation 'org.mozilla.geckoview:geckoview:147.0.20260212191108'

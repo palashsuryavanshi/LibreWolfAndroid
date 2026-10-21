@@ -191,7 +191,10 @@ class MainActivity : AppCompatActivity() {
     /** The standing "this tab is private" reminder. */
     private lateinit var privateIndicator: PrivateBrowsingNotifier
 
-    private lateinit var geckoView: GeckoView
+    private lateinit var geckoView: RefreshableGeckoView
+
+    /** The pull-to-refresh wrapper around [geckoView]. Null until inflated. */
+    private lateinit var pullRefresh: androidx.swiperefreshlayout.widget.SwipeRefreshLayout
     private lateinit var browserControls: View
     private lateinit var homeOverlay: LinearLayout
     private lateinit var trayTrackersText: String
@@ -1059,6 +1062,8 @@ class MainActivity : AppCompatActivity() {
         }
 
         geckoView = findViewById(R.id.geckoview)
+        pullRefresh = findViewById(R.id.pull_refresh)
+        wirePullToRefresh()
         browserControls = findViewById(R.id.browser_controls)
         homeOverlay = findViewById(R.id.home_overlay)
         progress = findViewById(R.id.progress)
@@ -1722,6 +1727,53 @@ class MainActivity : AppCompatActivity() {
 
     // ---- tabs ----
 
+    /**
+     * Feeds the page's scroll offset to the refresh layout.
+     *
+     * `SwipeRefreshLayout` asks its child whether the content can scroll up
+     * before it takes over a downward pull. GeckoView does not answer that
+     * from the engine's scroll state -- it inherits FrameLayout's default of
+     * "no" -- so without this the pull would fire a refresh at every scroll
+     * position instead of only at the top of the page.
+     */
+    private val pageScrollDelegate = object : GeckoSession.ScrollDelegate {
+        override fun onScrollChanged(session: GeckoSession, x: Int, y: Int) {
+            if (::geckoView.isInitialized) geckoView.onPageScrolled(x, y)
+        }
+    }
+
+    /**
+     * Connects the refresh layout to the active session.
+     *
+     * Only a real page can be pulled to refresh. The start page has nothing
+     * to reload, and leaving the gesture live over it would offer a refresh
+     * that does nothing, so it is disabled while the start page is in front.
+     */
+    private fun wirePullToRefresh() {
+        pullRefresh.setOnRefreshListener {
+            val tab = activeTab()
+            if (tab == null || tab.isHome) {
+                pullRefresh.isRefreshing = false
+                return@setOnRefreshListener
+            }
+            if (tab.isError || tab.url.isBlank() || tab.url.startsWith("data:")) {
+                pullRefresh.isRefreshing = false
+                return@setOnRefreshListener
+            }
+            tab.isLoading = true
+            tab.needsLoad = false
+            runCatching { tab.session.reload() }
+        }
+    }
+
+    /** Updates the refresh layout's availability for the tab in front. */
+    private fun updatePullToRefresh(tab: Tab?) {
+        if (!::pullRefresh.isInitialized) return
+        val usable = tab != null && !tab.isHome && !tab.isError &&
+            tab.url.isNotBlank() && !tab.url.startsWith("data:")
+        pullRefresh.isEnabled = usable
+    }
+
     private fun createSession(isPrivate: Boolean, open: Boolean = true): GeckoSession {
         val settings = GeckoSessionSettings.Builder().apply {
             usePrivateMode(isPrivate)
@@ -1745,6 +1797,10 @@ class MainActivity : AppCompatActivity() {
         val session = GeckoSession(settings)
         session.contentDelegate = contentDelegate
         session.navigationDelegate = navigationDelegate
+        // Reports the page's scroll offset, which the refresh layout needs
+        // to decide whether a downward pull should scroll the page or
+        // refresh it. GeckoView exposes no getter for this.
+        session.scrollDelegate = pageScrollDelegate
         session.progressDelegate = progressDelegate
         session.contentBlockingDelegate = contentBlockingDelegate
         session.promptDelegate = promptDelegate
@@ -1859,6 +1915,9 @@ class MainActivity : AppCompatActivity() {
             chromeRevealed = false
         }
         geckoView.setSession(tab.session)
+        // The pull-to-refresh gesture only makes sense over a real page, so
+        // it is switched off for the start page and for error/data: pages.
+        updatePullToRefresh(tab)
         // Re-applied on every switch, not only on a location change. Leaving a
         // web app for an ordinary tab used to leave immersiveMode set, which
         // hides the address bar, the tray and the menu over the tab that came
@@ -2148,6 +2207,12 @@ class MainActivity : AppCompatActivity() {
             addressText.hint = tab.url
         }
         updateSecurityIndicator(tab)
+        // Kept here rather than only in selectTab(): a tab's URL is set by
+        // navigate() after selectTab() has already run, so the layout would
+        // stay disabled for the whole page. updateAddress() runs on every
+        // navigation and tab switch, which is the point at which the URL is
+        // actually known.
+        updatePullToRefresh(tab)
     }
 
     /**
