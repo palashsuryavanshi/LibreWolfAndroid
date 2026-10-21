@@ -1264,7 +1264,7 @@ class MainActivity : AppCompatActivity() {
         // another app can never replace the page the user was reading. Existing
         // tabs stay where they are and the new tab becomes active. The tab is
         // created before navigate() runs, so navigate() lands in it.
-        if (isExternalWebLink && freshLaunch) {
+        if (isExternalWebLink) {
             newTab(isPrivate = false, select = true, skipHomepage = true)
         } else if (tabs.isEmpty()) {
             newTab(isPrivate = false, select = true)
