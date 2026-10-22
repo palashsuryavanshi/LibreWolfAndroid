@@ -104,15 +104,6 @@
             android:text="5"
             android:textColor="@color/librewolf_text"
             android:textStyle="bold" />
-
-        <ImageButton
-            android:id="@+id/tray_close_all"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/close_all_tabs"
-            android:src="@drawable/ic_trash" />
     </LinearLayout>
 
     <TextView

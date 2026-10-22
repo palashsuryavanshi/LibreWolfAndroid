@@ -1378,6 +1378,10 @@ class MainActivity : AppCompatActivity() {
         if (::privateIndicator.isInitialized) {
             privateIndicator.onResume(activeTab()?.isPrivate == true)
         }
+        // The search engine badge reflects whatever engine is stored now:
+        // changing it in Settings and coming back must update the letter,
+        // otherwise the bar keeps showing the engine that was live before.
+        updateEngineBadge()
     }
 
     @Suppress("DEPRECATION")
@@ -1996,33 +2000,6 @@ class MainActivity : AppCompatActivity() {
         // nothing here a broad wipe could disturb.
         val emptied = tabs.none { !it.isHome }
         if (removed.isPrivate && !emptied && tabs.none { it.isPrivate }) sanitize(keepPage = true)
-        refreshTray()
-    }
-
-    private fun closeAllTabs(privateOnly: Boolean) {
-        val victims = tabs.filter { it.isPrivate == privateOnly }
-        if (victims.isEmpty()) return
-        val activeRemoved = victims.any { it.id == activeId }
-        for (tab in victims) {
-            if (!tab.isPrivate && !tab.isHome && tab.url.isNotBlank()) {
-                sessionStore.addClosed(tab.url, tab.title)
-            }
-            tabs.remove(tab)
-            tab.session.close()
-        }
-        val emptied = tabs.isEmpty()
-        if (emptied) {
-            // Same reasoning as closing the last private tab one at a time:
-            // clearing the private tray should land the user in normal browsing.
-            newTab(isPrivate = false, select = true)
-        } else if (activeRemoved) {
-            selectTab(tabs[0].id)
-        } else {
-            updateBadge()
-        }
-        // As in closeTab: the broad clear only runs when a real session
-        // survived it, not when the tray was emptied and refilled.
-        if (privateOnly && !emptied && tabs.none { it.isPrivate }) sanitize(keepPage = true)
         refreshTray()
     }
 
@@ -2931,7 +2908,6 @@ class MainActivity : AppCompatActivity() {
             }
             onSelect = { selectTab(it) }
             onClose = { closeTab(it) }
-            onCloseAll = { closeAllTabs(it) }
             onNewTab = { newTab(isPrivate = it, select = true) }
             onTabMenu = { showTabMenu(it) }
         }

@@ -29,7 +29,6 @@
     <string name="new_tab">New tab</string>
     <string name="new_private_tab">New private tab</string>
     <string name="tab_private">Private</string>
-    <string name="close_all_tabs">Close all tabs</string>
     <string name="homepage">Homepage</string>
     <string name="reload">Reload</string>
     <string name="share">Share</string>
@@ -693,7 +692,6 @@
     <string name="download_resume_done">Download resumed</string>
     <string name="download_cancel_done">Download canceled</string>
     <string name="download_retry_done">Download restarted</string>
-    <string name="a11y_close_all_tabs">Close all %1$d tabs</string>
     <string-array name="download_filters">
         <item>@string/filter_all</item>
         <item>@string/filter_images</item>

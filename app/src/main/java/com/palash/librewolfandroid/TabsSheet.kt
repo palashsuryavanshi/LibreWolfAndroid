@@ -32,7 +32,6 @@ class TabsSheet : BottomSheetDialogFragment() {
     var showGroups: Boolean = false
     var onSelect: (Long) -> Unit = {}
     var onClose: (Long) -> Unit = {}
-    var onCloseAll: (Boolean) -> Unit = {}
     var onNewTab: (Boolean) -> Unit = {}
     var onTabMenu: (TabItem) -> Unit = {}
 
@@ -48,7 +47,6 @@ class TabsSheet : BottomSheetDialogFragment() {
     private var trackersView: TextView? = null
     private var countView: TextView? = null
     private var emptyView: TextView? = null
-    private var closeAllView: View? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -140,10 +138,6 @@ class TabsSheet : BottomSheetDialogFragment() {
             visibility = if (showGroups) View.VISIBLE else View.GONE
             setOnClickListener { switchMode(MODE_GROUPS) }
         }
-        view.findViewById<View>(R.id.tray_close_all).apply {
-            closeAllView = this
-            setOnClickListener { onCloseAll(mode == MODE_PRIVATE) }
-        }
         view.findViewById<View>(R.id.sheet_new_tab).setOnClickListener {
             onNewTab(mode == MODE_PRIVATE)
             dismiss()
@@ -206,25 +200,6 @@ class TabsSheet : BottomSheetDialogFragment() {
         trackersView?.text = trackersText
         countView?.text = shown.size.toString()
         emptyView?.visibility = if (shown.isEmpty()) View.VISIBLE else View.GONE
-        // "Close all" with nothing to close did nothing at all, with no state to
-        // say so beforehand. Disabled and dimmed is the honest presentation: the
-        // control is real, and there is currently nothing for it to act on.
-        closeAllView?.apply {
-            val has = shown.isNotEmpty()
-            isEnabled = has
-            alpha = if (has) 1f else 0.4f
-            // Disabling is not enough on its own. A disabled view that is still
-            // focusable stays in the accessibility and keyboard traversal order,
-            // so a TalkBack or switch user can land on a control that does
-            // nothing and gets no explanation -- a dead stop with no way past it
-            // that looks like a working button. The empty-state text above the
-            // control is what tells them why.
-            isFocusable = has
-            contentDescription = view?.context?.getString(
-                R.string.a11y_close_all_tabs,
-                shown.size,
-            )
-        }
         emptyView?.text = getString(
             when (mode) {
                 MODE_PRIVATE -> R.string.no_private_tabs
